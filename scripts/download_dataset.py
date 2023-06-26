@@ -47,26 +47,30 @@ class DatasetDownloader:
             else:
                 print(f"Deleting .zip file for year {year}")
                 os.system(f"rm {os.path.join(dir,self.available_years[year])}")
-                print(f"Deleted .zip file for year {year}")
+
 
     def decompress_dataset(self, dir: str) -> None:
         for year in self.dataset_years:
             if year not in self.available_years:
                 raise ValueError(f"Year {year} is not available. Available years are {self.available_years.keys()}")
+            elif os.path.exists(os.path.join(dir,year)):
+                print(f"Dataset for year {year} already decompressed")
             else:
                 print(f"Decompressing dataset for year {year}")
                 with zipfile.ZipFile(os.path.join(dir,self.available_years[year]), 'r') as zip_ref:
                     zip_ref.extractall(dir)
-                print(f"Decompressed dataset for year {year}")
+
     
     def download_dataset(self, dir: str) -> None:
         for year in self.dataset_years:
             if year not in self.available_years:
                 raise ValueError(f"Year {year} is not available. Available years are {self.available_years.keys()}")
+            elif os.path.exists(os.path.join(dir,self.available_years[year])):
+                print(f"Dataset for year {year} already downloaded")                
             else:
                 print(f"Downloading dataset for year {year}")
                 urllib.request.urlretrieve(self.dataset_url + self.available_years[year], os.path.join(dir,self.available_years[year]), MyProgressBar())
-                print(f"Downloaded dataset for year {year}")
+
         
 
 def main():
