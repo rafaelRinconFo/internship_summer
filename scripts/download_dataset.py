@@ -6,7 +6,7 @@ import urllib.request
 
 
 class DatasetDownloader:
-    def __init__(self, years: list, des_dir: str) -> None:
+    def __init__(self, years: list, des_dir: str, download_all: bool = False) -> None:
         self.available_years = {
             2015: "98240.zip",
             2016: "98289.zip",
@@ -14,8 +14,10 @@ class DatasetDownloader:
             2020: "98356.zip"
         }
         self.dataset_url = "https://www.seanoe.org/data/00810/92226/data/"
-
-        self.dataset_years = [int(''.join(year)) for year in years]
+        if download_all:
+            self.dataset_years = list(self.available_years.keys())
+        else:
+            self.dataset_years = [int(''.join(year)) for year in years]
         print(f"Downloading dataset for years {self.dataset_years}")
         self.download_dataset(des_dir)
         print(f'Decompressing dataset for years {self.dataset_years}')
@@ -56,10 +58,12 @@ def main():
     parser = argparse.ArgumentParser(description="Download dataset from https://www.seanoe.org/data/00810/92226/")
     parser.add_argument("--years", type=list, help="List of years to download", default=[],nargs='+')
     parser.add_argument("--des_dir", type=str, help="Destination directory to save the dataset", default="datasets")
+    parser.add_argument("--download_all", type=bool, help="Download all available years", default=False)
     args = parser.parse_args()
     years = args.years
     des_dir = args.des_dir
-    dataset_downloader = DatasetDownloader(years, des_dir)
+    download_all = args.download_all
+    dataset_downloader = DatasetDownloader(years, des_dir, download_all)
 
 if __name__ == "__main__":    
     main()
