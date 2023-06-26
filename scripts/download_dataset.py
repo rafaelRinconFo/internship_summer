@@ -2,8 +2,23 @@ import os
 import zipfile
 import argparse
 import urllib.request
+import progressbar
 
 
+class MyProgressBar():
+    def __init__(self):
+        self.pbar = None
+
+    def __call__(self, block_num, block_size, total_size):
+        if not self.pbar:
+            self.pbar=progressbar.ProgressBar(maxval=total_size)
+            self.pbar.start()
+
+        downloaded = block_num * block_size
+        if downloaded < total_size:
+            self.pbar.update(downloaded)
+        else:
+            self.pbar.finish()
 
 class DatasetDownloader:
     def __init__(self, years: list, des_dir: str, download_all: bool = False) -> None:
@@ -50,7 +65,7 @@ class DatasetDownloader:
                 raise ValueError(f"Year {year} is not available. Available years are {self.available_years.keys()}")
             else:
                 print(f"Downloading dataset for year {year}")
-                urllib.request.urlretrieve(self.dataset_url + self.available_years[year], os.path.join(dir,self.available_years[year]))
+                urllib.request.urlretrieve(self.dataset_url + self.available_years[year], os.path.join(dir,self.available_years[year]), MyProgressBar())
                 print(f"Downloaded dataset for year {year}")
         
 
