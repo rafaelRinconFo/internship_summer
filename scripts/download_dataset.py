@@ -53,7 +53,7 @@ class DatasetDownloader:
         for year in self.dataset_years:
             if year not in self.available_years:
                 raise ValueError(f"Year {year} is not available. Available years are {self.available_years.keys()}")
-            elif os.path.exists(os.path.join(dir,year)):
+            elif os.path.exists(os.path.join(dir,str(year))):
                 print(f"Dataset for year {year} already decompressed")
             else:
                 print(f"Decompressing dataset for year {year}")
