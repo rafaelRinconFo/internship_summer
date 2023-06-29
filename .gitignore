@@ -1,3 +1,5 @@
 datasets/*
 *.out
 *.pyc
+*.pth
+*.pt
