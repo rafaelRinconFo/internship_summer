@@ -4,3 +4,7 @@
 ```
 conda activate unsupervised_monocular
 ```
+
+```
+python3 scripts/download_dataset.py --years 2015 201
+```

@@ -1,2 +1,3 @@
 datasets/*
 *.out
+*.pyc
