@@ -9,7 +9,7 @@ import yaml
 
 
 from supervised import get_midas_env, RMSELoss, RMSLELoss
-
+from metrics import image_logger
 
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, loss) -> None:
@@ -29,7 +29,7 @@ class Trainer:
         
         for i, data in enumerate(dataloader):   
         
-            image, depth_map = data
+            image, depth_map, _ = data
             #Moving to GPU
             image = image.to(self.device)
 
@@ -74,7 +74,7 @@ class Trainer:
         val_losses = []
         with torch.no_grad(): # No need to track the gradients
             for i, data in enumerate(dataloader):
-                image, depth_map = data
+                image, depth_map, _ = data
 
                 #Moving to GPU
                 image = image.to(self.device)
@@ -160,6 +160,7 @@ if __name__ == "__main__":
         print("Validation")
         val_losses = trainer.validation_epoch(model, trainer.device, val_loader)
         print(f"Average validation loss: {val_losses}")
+        image_logger(model, test_loader, wandb, trainer.device)
         print("Saving model")
         torch.save(model.state_dict(), f"/home/rafa/Documents/internship_summer/experiments/supervised/{model_type}_epoch_{epoch}.pth")
         print("Model saved")

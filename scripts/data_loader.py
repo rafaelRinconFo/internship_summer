@@ -34,9 +34,9 @@ class SupervisedMidasDataset(torch.utils.data.Dataset):
         image = cv2.imread(os.path.join(self.images_path, self.list_images_paths[index]))        
         depth_map = cv2.imread(os.path.join(self.depth_maps_path, self.list_depth_paths[index]), cv2.IMREAD_GRAYSCALE)
         if self.transform:
-          return self.transform(image), depth_map
+          return self.transform(image), depth_map, os.path.join(self.images_path, self.list_images_paths[index])
         
-        return image, depth_map
+        return image, depth_map, os.path.join(self.images_path, self.list_images_paths[index])
 
     def __len__(self):
         return len(self.list_images_paths)    
