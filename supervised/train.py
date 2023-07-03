@@ -50,8 +50,11 @@ class Trainer:
                 align_corners=False,
             ).squeeze()
 
+            if len(pred.shape) == 2:
+                pred = pred.unsqueeze(0)
+                
             # Compute loss
-            loss=self.loss(pred.squeeze(),  depth_map).float()
+            loss=self.loss(pred,  depth_map).float()
             
             # Backward pass
             # Uses the gradient object 
@@ -97,6 +100,10 @@ class Trainer:
                 ).squeeze()
                 #Computing the loss, storing it
                 #d_test=T.functional.resize(d, (128, 256))
+
+                if len(pred.shape) == 2:
+                    pred = pred.unsqueeze(0)
+
                 loss=self.loss(pred,  depth_map)
                 val_losses.append(loss)
                 #Display
@@ -107,7 +114,7 @@ class Trainer:
 
 def main():
     # Read arguments from yaml file
-    with open('/home/rafa/Documents/internship_summer/configs/supervised_params.yml', 'r') as file:
+    with open('configs/supervised_params.yml', 'r') as file:
         params = yaml.load(file, Loader=yaml.FullLoader)
 
     arparser = argparse.ArgumentParser()
@@ -173,7 +180,7 @@ def main():
         print(f"Average validation loss: {val_losses}")
         image_logger(model, test_loader, wandb, trainer.device)
         print("Saving model")
-        torch.save(model.state_dict(), f"/home/rafa/Documents/internship_summer/experiments/supervised/{model_type}_epoch_{epoch}.pth")
+        torch.save(model.state_dict(), os.path.join(run_directory,f"epoch_{epoch}.pth"))
         print("Model saved")
         wandb.log({"loss": train_losses})
         wandb.log({"val_loss": val_losses})
