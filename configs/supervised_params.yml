@@ -3,6 +3,7 @@ model_type: MiDaS_small # It can be DPT_Large, DPT_Hybrid or MiDaS_small
 train_size: 0.8
 val_size: 0.1
 batch_size: 8
-epochs: 5
+epochs: 15
 lr: 0.0001
 weight_decay: 0.000001
+loss: L1 # It can be L1, Huber, SSIM

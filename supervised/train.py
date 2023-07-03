@@ -8,9 +8,11 @@ import wandb
 import yaml
 
 
-from supervised import get_midas_env, RMSELoss, RMSLELoss
-from metrics import image_logger
+from supervised import get_midas_env, SSIM
+from metrics import image_logger, RMSE, RMSLE
 from scripts import create_run_directory
+
+
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, loss) -> None:
         
@@ -34,6 +36,10 @@ class Trainer:
             image = image.to(self.device)
 
             image = image.squeeze(1)
+
+            if depth_map.dtype != torch.float32:
+                depth_map = depth_map.type(torch.float32)
+
             depth_map = depth_map.to(self.device)
             # Sets the gradients attached to the parameters objects to zero.
             self.optimizer.zero_grad()  
@@ -54,7 +60,7 @@ class Trainer:
                 pred = pred.unsqueeze(0)
                 
             # Compute loss
-            loss=self.loss(pred,  depth_map).float()
+            loss=self.loss(pred,  depth_map)
             
             # Backward pass
             # Uses the gradient object 
@@ -81,6 +87,10 @@ class Trainer:
 
                 #Moving to GPU
                 image = image.to(self.device)
+
+                if depth_map.dtype != torch.float32:
+                    depth_map = depth_map.type(torch.float32)
+
                 depth_map= depth_map.to(self.device)
 
                 image = image.squeeze(1)
@@ -131,6 +141,16 @@ def main():
     lr = params['lr']
     weight_decay = params['weight_decay']
     
+    loss_dict = {
+        # Same as mean absolute error
+        "L1": nn.L1Loss(),
+        # Same as nn.SmoothL1Loss() if delta=1
+        "Huber": nn.HuberLoss(),
+        # # Structural Similarity Index 
+        # "SSIM": SSIM(),
+    }
+    loss_function = loss_dict[params['loss']]
+
     run_directory = create_run_directory(model_type)
 
     wandb_api_key = os.environ.get("WANDB_API_KEY")
@@ -144,6 +164,7 @@ def main():
         # Track hyperparameters and run metadata
         config={
             "experiment_directory": run_directory,
+            "loss": params['loss'],
             "learning_rate": lr,
             "epochs": epochs,
             "batch_size": batch_size,
@@ -166,7 +187,7 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=True, num_workers=4)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=4)
 
-    trainer = Trainer(model, train_loader, val_loader, optim, nn.L1Loss())
+    trainer = Trainer(model, train_loader, val_loader, optim, loss_function)
 
 
     if toy:
@@ -182,12 +203,13 @@ def main():
         print("Validation")
         val_losses = trainer.validation_epoch(model, trainer.device, val_loader)
         print(f"Average validation loss: {val_losses}")
-        image_logger(model, test_loader, wandb, trainer.device)
         print("Saving model")
         torch.save(model.state_dict(), os.path.join(run_directory,f"epoch_{epoch}.pth"))
         print("Model saved")
-        wandb.log({"loss": train_losses})
-        wandb.log({"val_loss": val_losses})
+        if wandb_api_key:
+            image_logger(model, test_loader, wandb, trainer.device)
+            wandb.log({"loss": train_losses})
+            wandb.log({"val_loss": val_losses})
 
 
 if __name__ == "__main__":
