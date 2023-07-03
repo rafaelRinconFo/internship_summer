@@ -10,7 +10,7 @@ import yaml
 
 from supervised import get_midas_env, RMSELoss, RMSLELoss
 from metrics import image_logger
-
+from scripts import create_run_directory
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, loss) -> None:
         
@@ -105,10 +105,15 @@ class Trainer:
         average_val_loss = sum(val_losses)/len(val_losses)
         return average_val_loss
 
-if __name__ == "__main__":
+def main():
     # Read arguments from yaml file
     with open('/home/rafa/Documents/internship_summer/configs/supervised_params.yml', 'r') as file:
         params = yaml.load(file, Loader=yaml.FullLoader)
+
+    arparser = argparse.ArgumentParser()
+    arparser.add_argument('--toy', type=bool, default=False)
+    args = arparser.parse_args()
+    toy = args.toy
 
     dataset_path = params['dataset_path']
     model_type = params['model_type']
@@ -118,15 +123,20 @@ if __name__ == "__main__":
     epochs = params['epochs']
     lr = params['lr']
     weight_decay = params['weight_decay']
-      
+    
+    run_directory = create_run_directory(model_type)
+
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if wandb_api_key:
         wandb.login(key=wandb_api_key)
         run = wandb.init(
+
+        name=f"supervised_{model_type}_{run_directory.split('/')[-1]}",
         # Set the project where this run will be logged
         project="supervised-midas",
         # Track hyperparameters and run metadata
         config={
+            "experiment_directory": run_directory,
             "learning_rate": lr,
             "epochs": epochs,
             "batch_size": batch_size,
@@ -143,13 +153,14 @@ if __name__ == "__main__":
 
     optim=torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    dataset = SupervisedMidasDataset(data_path=dataset_path, transform=transforms)
+    dataset = SupervisedMidasDataset(data_path=dataset_path, transform=transforms, toy=toy)
     train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, 1-train_size-val_size])
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4)
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=True, num_workers=4)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=4)
 
     trainer = Trainer(model, train_loader, val_loader, optim, nn.L1Loss())
+
 
 
     for epoch in range(epochs): 
@@ -166,3 +177,7 @@ if __name__ == "__main__":
         print("Model saved")
         wandb.log({"loss": train_losses})
         wandb.log({"val_loss": val_losses})
+
+
+if __name__ == "__main__":
+    main()

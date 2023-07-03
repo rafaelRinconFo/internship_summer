@@ -16,7 +16,7 @@ import os
 
 class SupervisedMidasDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_path, transform=None):
+    def __init__(self, data_path, transform=None, toy = False):
         
         self.images_path = os.path.join(data_path, 'dense','images')
         self.depth_maps_path = os.path.join(data_path, 'dense','depth')
@@ -25,7 +25,9 @@ class SupervisedMidasDataset(torch.utils.data.Dataset):
         self.list_depth_paths = os.listdir(self.depth_maps_path)
         self.list_depth_paths.sort()
         self.transform= transform
-
+        if toy:
+            self.list_images_paths = self.list_images_paths[:50]
+            self.list_depth_paths = self.list_depth_paths[:50]
 
         
     def __getitem__(self, index):
