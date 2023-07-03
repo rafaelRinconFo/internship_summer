@@ -172,6 +172,8 @@ def main():
     if toy:
         print("Toy mode activated. Only 100 images will be used for training and validation")
 
+
+    print(f"Training process for the {model_type} model")
     for epoch in range(epochs): 
         print(f"Epoch {epoch}")
         print("Training")
