@@ -169,6 +169,8 @@ def main():
     trainer = Trainer(model, train_loader, val_loader, optim, nn.L1Loss())
 
 
+    if toy:
+        print("Toy mode activated. Only 100 images will be used for training and validation")
 
     for epoch in range(epochs): 
         print(f"Epoch {epoch}")

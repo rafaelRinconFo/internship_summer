@@ -26,8 +26,8 @@ class SupervisedMidasDataset(torch.utils.data.Dataset):
         self.list_depth_paths.sort()
         self.transform= transform
         if toy:
-            self.list_images_paths = self.list_images_paths[:50]
-            self.list_depth_paths = self.list_depth_paths[:50]
+            self.list_images_paths = self.list_images_paths[:100]
+            self.list_depth_paths = self.list_depth_paths[:100]
 
         
     def __getitem__(self, index):
