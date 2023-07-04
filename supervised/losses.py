@@ -3,6 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+
+class ScaleInvariantLoss(nn.Module):
+    def __init__(self):
+        super(ScaleInvariantLoss,self).__init__()
+
+    def forward(self, pred, y):
+        d = torch.log(torch.abs(pred)+1) - torch.log(torch.abs(y)+1)
+        n = torch.numel(d)
+        loss = torch.sum(d**2)/n - ((torch.sum(d**2))**2)/(n**2)
+        return torch.abs(loss)
+
+
 class SSIM(nn.Module):
     # TODO Review this, there's something off with the gradients
     def __init__(self, window_size=11, sigma=1.5):

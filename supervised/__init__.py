@@ -1,2 +1,2 @@
 from .model import get_midas_env
-from .losses import SSIM
+from .losses import SSIM, ScaleInvariantLoss

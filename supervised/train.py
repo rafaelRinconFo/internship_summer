@@ -8,7 +8,7 @@ import wandb
 import yaml
 
 
-from supervised import get_midas_env, SSIM
+from supervised import get_midas_env, SSIM, ScaleInvariantLoss
 from metrics import image_logger, RMSE, RMSLE
 from scripts import create_run_directory
 
@@ -146,6 +146,10 @@ def main():
         "L1": nn.L1Loss(),
         # Same as nn.SmoothL1Loss() if delta=1
         "Huber": nn.HuberLoss(),
+        # Mean Squared Error
+        "MSE": nn.MSELoss(),
+        # Scale Invariant Loss
+        "SIL": ScaleInvariantLoss(),
         # # Structural Similarity Index 
         # "SSIM": SSIM(),
     }
