@@ -5,13 +5,14 @@ import math
 
 
 class ScaleInvariantLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, lambda_=0.5):
         super(ScaleInvariantLoss,self).__init__()
+        self.lambda_ = lambda_
 
     def forward(self, pred, y):
         d = torch.log(torch.abs(pred)+1) - torch.log(torch.abs(y)+1)
         n = torch.numel(d)
-        loss = torch.sum(d**2)/n - ((torch.sum(d**2))**2)/(n**2)
+        loss = torch.sum(d**2)/n - self.lambda_*((torch.sum(d**2))**2)/(n**2)
         return torch.abs(loss)
 
 

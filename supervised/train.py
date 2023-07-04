@@ -9,7 +9,7 @@ import yaml
 
 
 from supervised import get_midas_env, SSIM, ScaleInvariantLoss
-from metrics import image_logger, RMSE, RMSLE
+from metrics import image_logger, log_metrics
 from scripts import create_run_directory
 
 
@@ -140,6 +140,8 @@ def main():
     epochs = params['epochs']
     lr = params['lr']
     weight_decay = params['weight_decay']
+    log_metrics_every = params['log_metrics_every']
+    desired_metrics = params['desired_metrics']
     
     loss_dict = {
         # Same as mean absolute error
@@ -212,8 +214,11 @@ def main():
         print("Model saved")
         if wandb_api_key:
             image_logger(model, test_loader, wandb, trainer.device)
-            wandb.log({"loss": train_losses})
+            if epoch % log_metrics_every == 0:
+                log_metrics(model, test_loader, desired_metrics, epoch, wandb, device = trainer.device)
+            wandb.log({"loss": train_losses}, commit=False)
             wandb.log({"val_loss": val_losses})
+
 
 
 if __name__ == "__main__":
