@@ -6,5 +6,6 @@ batch_size: 8
 epochs: 15
 lr: 0.0001
 weight_decay: 0.000001
-loss: L1 # It can be L1, MSE, Huber, SIL, SSIM is still WIP
-log_metrics_every: 10 # Log metrics every n epochs
+loss: Huber # It can be L1, MSE, Huber, SIL, SSIM is still WIP
+log_metrics_every: 5 # Log metrics every n epochs
+desired_metrics: ["accuracy_threshold", "RMSE", "RMSLE"]
