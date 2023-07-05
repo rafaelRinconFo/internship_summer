@@ -35,7 +35,7 @@ class DatasetSpliter:
         self.test_ratio = test_ratio
         self.split_type = split_type
         self.segment_size = segment_size
-        self.df = pd.DataFrame(columns=["image_path", "year", "split"])
+        self.df = pd.DataFrame(columns=["image_name", "year", "split"])
         print("Initializing DatasetSpliter")
 
     def split_dataset(self):
@@ -99,21 +99,21 @@ class DatasetSpliter:
         ### add the images to the dataframe
         for image in train_list:
             df_new_row = pd.DataFrame(
-                {"image_path": [image], "year": [year], "split": ["train"]}
+                {"image_name": [image], "year": [year], "split": ["train"]}
             )
             self.df = pd.concat([self.df, df_new_row], ignore_index=True)
         for image in val_list:
             df_new_row = pd.DataFrame(
-                {"image_path": [image], "year": [year], "split": ["val"]}
+                {"image_name": [image], "year": [year], "split": ["val"]}
             )
             self.df = pd.concat([self.df, df_new_row], ignore_index=True)
         for image in test_list:
             df_new_row = pd.DataFrame(
-                {"image_path": [image], "year": [year], "split": ["test"]}
+                {"image_name": [image], "year": [year], "split": ["test"]}
             )
             self.df = pd.concat([self.df, df_new_row], ignore_index=True)
         if sort_data:
-            self.df.sort_values(by=["image_path"], inplace=True)
+            self.df.sort_values(by=["image_name"], inplace=True)
 
 
 def main():

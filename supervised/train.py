@@ -132,10 +132,8 @@ def main():
     args = arparser.parse_args()
     toy = args.toy
 
-    dataset_path = params['dataset_path']
+    csv_split = params['csv_split']
     model_type = params['model_type']
-    train_size = params['train_size']
-    val_size = params['val_size']
     batch_size = params['batch_size']
     epochs = params['epochs']
     lr = params['lr']
@@ -176,9 +174,7 @@ def main():
             "batch_size": batch_size,
             "weight_decay": weight_decay,
             "model_type": model_type,
-            "train_size": train_size,
-            "val_size": val_size,
-            "dataset_path": dataset_path            
+            "csv_split": csv_split            
         })
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
@@ -187,18 +183,14 @@ def main():
 
     optim=torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    dataset = SupervisedMidasDataset(data_path=dataset_path, transform=transforms, toy=toy)
-    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_size, val_size, 1-train_size-val_size])
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4)
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=True, num_workers=4)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=4)
-
-    trainer = Trainer(model, train_loader, val_loader, optim, loss_function)
-
-
     if toy:
         print("Toy mode activated. Only 100 images will be used for training and validation")
 
+    train_loader = torch.utils.data.DataLoader(SupervisedMidasDataset(split_csv_file=csv_split, transform=transforms, toy=toy, split='train'), batch_size=batch_size, shuffle=True, num_workers=4)
+    val_loader = torch.utils.data.DataLoader(SupervisedMidasDataset(split_csv_file=csv_split, transform=transforms, toy=toy, split='val'), batch_size=batch_size, shuffle=True, num_workers=4)
+    test_loader = torch.utils.data.DataLoader(SupervisedMidasDataset(split_csv_file=csv_split, transform=transforms, toy=toy, split='test'), batch_size=batch_size, shuffle=True, num_workers=4)
+
+    trainer = Trainer(model, train_loader, val_loader, optim, loss_function)
 
     print(f"Training process for the {model_type} model")
     for epoch in range(epochs): 
