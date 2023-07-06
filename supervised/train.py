@@ -12,6 +12,7 @@ from supervised import get_midas_env, SSIM, ScaleInvariantLoss
 from metrics import image_logger, log_metrics
 from scripts import create_run_directory
 
+from tqdm import tqdm
 
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, loss) -> None:
@@ -24,13 +25,13 @@ class Trainer:
         self.optimizer = optimizer
         self.loss = loss
 
-    def train_epoch(self, dataloader, print_every = 10):
+    def train_epoch(self, dataloader):
         """ Trains the simple model for one epoch. losses_resolution indicates how often training_loss should be printed and stored. """
         self.model.train()
         train_losses = []
         
-        for i, data in enumerate(dataloader):   
-        
+
+        for data in tqdm(dataloader, desc="Training"):
             image, depth_map, _ = data
             #Moving to GPU
             image = image.to(self.device)
@@ -70,19 +71,18 @@ class Trainer:
             # Print and store batch loss
             #batch_loss = loss.item()/depth_map.shape[0]
             train_losses.append(loss)
-                
-                #Display
-            if i%print_every == 0:
-                print(f'\t partial train loss (single batch) for batch number {i}: {loss}')
+              
+
         average_train_loss = sum(train_losses)/len(train_losses)
         return average_train_loss
 
-    def validation_epoch(self, network, device, dataloader, print_every = 10):
+    def validation_epoch(self, network, device, dataloader):
         "Set evaluation mode for encoder and decoder"
         self.model.eval()  # evaluation mode, equivalent to "network.train(False)""
         val_losses = []
         with torch.no_grad(): # No need to track the gradients
-            for i, data in enumerate(dataloader):
+
+            for data in tqdm(dataloader, desc="Validation"):
                 image, depth_map, _ = data
 
                 #Moving to GPU
@@ -116,9 +116,7 @@ class Trainer:
 
                 loss=self.loss(pred,  depth_map)
                 val_losses.append(loss)
-                #Display
-                if i%print_every == 0:
-                    print(f'\t partial validation loss (single batch) for batch number {i}: {loss}')
+
         average_val_loss = sum(val_losses)/len(val_losses)
         return average_val_loss
 
@@ -200,15 +198,16 @@ def main():
     print(f"Training process for the {model_type} model")
     for epoch in range(epochs): 
         print(f"Epoch {epoch}")
-        print("Training")
         train_losses = trainer.train_epoch(train_loader)
         print(f"Average train loss: {train_losses}")
-        print("Validation")
         val_losses = trainer.validation_epoch(model, trainer.device, val_loader)
         print(f"Average validation loss: {val_losses}")
-        print("Saving model")
-        torch.save(model.state_dict(), os.path.join(run_directory,f"epoch_{epoch}.pth"))
-        print("Model saved")
+        if epoch % 10 == 0:
+            print("Saving model")
+            try:
+                torch.save(model.state_dict(), os.path.join(run_directory,f"epoch_{epoch}.pth"))
+            except Exception as e:
+                print(f"Error saving model: {e}")
         if wandb_api_key:
             image_logger(model, test_loader, wandb, trainer.device)
             if epoch % log_metrics_every == 0:
