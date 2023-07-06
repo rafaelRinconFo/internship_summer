@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+from metrics import worst_samples_image_logger
+
 class AccuracyThreshold(nn.Module):
     def __init__(self, threshold=1.25):
         super().__init__()
@@ -33,7 +35,7 @@ class RMSLE(nn.Module):
         return torch.sqrt(self.mse(torch.log(torch.abs(pred)+1), torch.log(torch.abs(y)+1)))
     
 
-def log_metrics(model, dataloader, metrics, epoch, wandb, device):
+def log_metrics(model, dataloader, metrics, epoch, wandb, device, worst_metric_criteria = "accuracy_threshold", worst_sample_number = 5):
     model.eval()
 
     available_metrics = {
@@ -42,7 +44,7 @@ def log_metrics(model, dataloader, metrics, epoch, wandb, device):
         "accuracy_threshold": AccuracyThreshold(),
     }
     metrics_logger = {metric:[] for metric in metrics}
-
+    worst_samples = {"batch": None, "value": 0, "pred": None}
     with torch.no_grad():
         for data in dataloader:
             image, depth_map, names = data
@@ -66,9 +68,28 @@ def log_metrics(model, dataloader, metrics, epoch, wandb, device):
 
             for metric in metrics:
                 metrics_logger[metric].append(available_metrics[metric](pred, depth_map).item())
+            
+            # Log the worst sample
+            if worst_samples["batch"] is None:
+                worst_samples["batch"] = data
+                worst_samples["pred"] = pred
+                worst_samples["value"] = metrics_logger[worst_metric_criteria][-1]
+            elif worst_metric_criteria == "accuracy_threshold" and metrics_logger[worst_metric_criteria][-1] < worst_samples["value"]:
+                worst_samples["batch"] = data
+                worst_samples["pred"] = pred
+                worst_samples["value"] = metrics_logger[worst_metric_criteria][-1]
+            elif metrics_logger[worst_metric_criteria][-1] > worst_samples["value"]:
+                worst_samples["batch"] = data
+                worst_samples["pred"] = pred
+                worst_samples["value"] = metrics_logger[worst_metric_criteria][-1]
+
+
 
     for metric in metrics:
         wandb.log({f"val_{metric}": sum(metrics_logger[metric])/len(metrics_logger[metric])}, commit=False)
+
+    worst_samples_image_logger(wandb,worst_sample_number,worst_samples["batch"], worst_samples["pred"], worst_samples["value"], worst_metric_criteria )
+
 
 def main():
     #Tests for the different functions

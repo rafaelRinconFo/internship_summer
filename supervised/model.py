@@ -1,6 +1,6 @@
 import torch
 
-def get_midas_env(model_name: str):
+def get_midas_env(model_name: str, pretrained: bool = True):
     """
     Returns the model and the necessary transforms for the MiDaS model
     
@@ -9,8 +9,8 @@ def get_midas_env(model_name: str):
             "DPT_Large"   for  MiDaS v3 - Large     (highest accuracy, slowest inference speed)
             "DPT_Hybrid"  for  MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
             "MiDaS_small" for  MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
-"""
-    midas = torch.hub.load("intel-isl/MiDaS", model_name)
+    """
+    midas = torch.hub.load("intel-isl/MiDaS", model_name, pretrained=pretrained)
     midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
 
     if "DPT" in model_name:

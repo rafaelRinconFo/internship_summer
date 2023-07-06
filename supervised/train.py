@@ -140,7 +140,10 @@ def main():
     weight_decay = params['weight_decay']
     log_metrics_every = params['log_metrics_every']
     desired_metrics = params['desired_metrics']
-    
+    pretrained = params['pretrained']
+    worst_metric_criteria = params['worst_metric_criteria']
+    worst_sample_number = params['worst_sample_number']
+
     loss_dict = {
         # Same as mean absolute error
         "L1": nn.L1Loss(),
@@ -160,9 +163,10 @@ def main():
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if wandb_api_key:
         wandb.login(key=wandb_api_key)
+        pretrained_str = "pretrained" if pretrained else "not_pretrained"
         run = wandb.init(
 
-        name=f"supervised_{model_type}_{run_directory.split('/')[-1]}",
+        name=f"supervised_{model_type}_{pretrained_str}_{run_directory.split('/')[-1]}",
         # Set the project where this run will be logged
         project="supervised-midas",
         # Track hyperparameters and run metadata
@@ -174,12 +178,13 @@ def main():
             "batch_size": batch_size,
             "weight_decay": weight_decay,
             "model_type": model_type,
-            "csv_split": csv_split            
+            "csv_split": csv_split,
+            "pretrained": pretrained,            
         })
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
 
-    model, transforms = get_midas_env(model_type)
+    model, transforms = get_midas_env(model_type, pretrained=pretrained)
 
     optim=torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -207,7 +212,7 @@ def main():
         if wandb_api_key:
             image_logger(model, test_loader, wandb, trainer.device)
             if epoch % log_metrics_every == 0:
-                log_metrics(model, test_loader, desired_metrics, epoch, wandb, device = trainer.device)
+                log_metrics(model, test_loader, desired_metrics, epoch, wandb, device = trainer.device, worst_metric_criteria = worst_metric_criteria, worst_sample_number = worst_sample_number)
             wandb.log({"loss": train_losses}, commit=False)
             wandb.log({"val_loss": val_losses})
 
