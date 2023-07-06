@@ -2,24 +2,45 @@ import os
 import zipfile
 import argparse
 import urllib.request
-import progressbar
+from tqdm import tqdm
 
 
-class MyProgressBar():
-    def __init__(self):
-        self.pbar = None
+import os
+from urllib.request import urlretrieve
+from tqdm import tqdm
 
-    def __call__(self, block_num, block_size, total_size):
-        if not self.pbar:
-            self.pbar=progressbar.ProgressBar(maxval=total_size)
-            self.pbar.start()
+def my_hook(t):
+    """Wraps tqdm instance.
+    Don't forget to close() or __exit__()
+    the tqdm instance once you're done with it (easiest using `with` syntax).
+    Example
+    -------
+    >>> with tqdm(...) as t:
+    ...     reporthook = my_hook(t)
+    ...     urllib.urlretrieve(..., reporthook=reporthook)
+    """
+    last_b = [0]
 
-        downloaded = block_num * block_size
-        if downloaded < total_size:
-            self.pbar.update(downloaded)
-        else:
-            self.pbar.finish()
+    def update_to(b=1, bsize=1, tsize=None):
+        """
+        b  : int, optional
+            Number of blocks transferred so far [default: 1].
+        bsize  : int, optional
+            Size of each block (in tqdm units) [default: 1].
+        tsize  : int, optional
+            Total size (in tqdm units). If [default: None] remains unchanged.
+        """
+        if tsize is not None:
+            t.total = tsize
+        t.update((b - last_b[0]) * bsize)
+        last_b[0] = b
 
+    return update_to
+
+def download(url, save_dir):
+    filename = url.split('/')[-1]
+    with tqdm(unit = 'B', unit_scale = True, unit_divisor = 1024, miniters = 1, desc = filename) as t:
+        urllib.request.urlretrieve(url, filename = os.path.join(save_dir, filename), reporthook = my_hook(t), data = None)
 class DatasetDownloader:
     def __init__(self, years: list, des_dir: str, download_all: bool = False) -> None:
         self.available_years = {
@@ -69,8 +90,8 @@ class DatasetDownloader:
                 print(f"Dataset for year {year} already downloaded")                
             else:
                 print(f"Downloading dataset for year {year}")
-                urllib.request.urlretrieve(self.dataset_url + self.available_years[year], os.path.join(dir,self.available_years[year]), MyProgressBar())
-
+                download(self.dataset_url + self.available_years[year], dir)
+                
         
 
 def main():
