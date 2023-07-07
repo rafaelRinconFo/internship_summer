@@ -42,6 +42,10 @@ class SupervisedMidasDataset(torch.utils.data.Dataset):
         # Load image and depth map
         image = cv2.imread(self.list_images_paths[index])
         depth_map = cv2.imread(self.list_depth_paths[index], cv2.IMREAD_GRAYSCALE)
+        # Resizes the depth map to hd resolution
+        depth_map = cv2.resize(
+            depth_map, (1920, 1080), interpolation=cv2.INTER_AREA
+        )
         if self.transform:
             return self.transform(image), depth_map, self.list_images_paths[index]
 
