@@ -3,3 +3,4 @@
 *.pth
 *.pt
 wandb/
+test_notebook.ipynb
