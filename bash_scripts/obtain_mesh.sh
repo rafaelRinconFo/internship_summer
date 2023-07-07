@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH --time=48:00:00
-#SBATCH --job-name=obtain_mesh_2020
+#SBATCH --job-name=obtain_mesh_2015
 #SBATCH --partition=mundus 
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
-#SBATCH --output=mesh_2020.out
-#SBATCH --error=err_mesh_2020.txt
+#SBATCH --cpus-per-task=16
+#SBATCH --output=../logs/mesh_2015.out
+#SBATCH --error=../logs/err_mesh_2015.txt
 
 # Check if arguments are provided
 if [ $# -eq 0 ]; then
@@ -26,11 +26,11 @@ ml load colmap
 
 echo "Obtaining the mesh for the data located in: $DATASET_PATH "
 nvidia-smi
-# colmap image_undistorter \
-#     --image_path $DATASET_PATH/images \
-#     --input_path $DATASET_PATH/sfm/ \
-#     --output_path $DATASET_PATH/dense \
-#     --output_type COLMAP \
+colmap image_undistorter \
+    --image_path $DATASET_PATH/images \
+    --input_path $DATASET_PATH/sfm/ \
+    --output_path $DATASET_PATH/dense \
+    --output_type COLMAP \
 
 colmap patch_match_stereo \
     --workspace_path $DATASET_PATH/dense \
@@ -41,9 +41,9 @@ colmap stereo_fusion \
     --workspace_path $DATASET_PATH/dense \
     --workspace_format COLMAP \
     --input_type geometric \
-    --output_path $DATASET_PATH/dense/fused.ply
+    --output_path $DATASET_PATH/dense/fused.ply     
 
- colmap poisson_mesher \
+colmap poisson_mesher \
     --input_path $DATASET_PATH/dense/fused.ply \
     --output_path $DATASET_PATH/dense/meshed-poisson.ply
 # echo "arg1: $arg1"
