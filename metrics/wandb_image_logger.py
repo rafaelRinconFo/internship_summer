@@ -5,6 +5,7 @@ import cv2
 
 from scripts import depth_map_color_scale
 
+
 def image_logger(model, dataloader, wandb, device, n_images=5):
     model.eval()
     image_logger = []
@@ -27,13 +28,27 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
             ).squeeze()
             # print(name)
             # print(type(name))
-            original_image = cv2.imread( names[0])
+            original_image = cv2.imread(names[0])
 
             if len(pred.shape) == 2:
                 pred = pred.unsqueeze(0)
-            image_logger.append(wandb.Image(original_image, caption=f"Input image for {names[0].split('/')[-1]}"))
-            depth_logger.append(wandb.Image(depth_map_color_scale(depth_map[0].cpu().numpy()), caption=f"Predicted depth map for {names[0].split('/')[-1]}"))
-            prediction_logger.append(wandb.Image(depth_map_color_scale(pred[0].cpu().numpy()), caption=f"Ground truth for {names[0].split('/')[-1]}"))
+            image_logger.append(
+                wandb.Image(
+                    original_image, caption=f"Input image for {names[0].split('/')[-1]}"
+                )
+            )
+            depth_logger.append(
+                wandb.Image(
+                    depth_map_color_scale(depth_map[0].cpu().numpy()),
+                    caption=f"Predicted depth map for {names[0].split('/')[-1]}",
+                )
+            )
+            prediction_logger.append(
+                wandb.Image(
+                    depth_map_color_scale(pred[0].cpu().numpy()),
+                    caption=f"Ground truth for {names[0].split('/')[-1]}",
+                )
+            )
         wandb.log(
             {
                 "Image": image_logger,
@@ -43,7 +58,8 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
             commit=False,
         )
 
-def worst_samples_image_logger(wandb,n_images, batch, pred, metric_value, metric_name):
+
+def worst_samples_image_logger(wandb, n_images, batch, pred, metric_value, metric_name):
     image_logger = []
     depth_logger = []
     prediction_logger = []
@@ -51,9 +67,24 @@ def worst_samples_image_logger(wandb,n_images, batch, pred, metric_value, metric
     for i in range(n_images):
         original_image = cv2.imread(names[i])
 
-        image_logger.append(wandb.Image(original_image, caption=f"Input image for {names[i].split('/')[-1]}. {metric_name} = {metric_value:.2f}"))
-        depth_logger.append(wandb.Image(depth_map_color_scale(depth_map[i].cpu().numpy()), caption=f"Ground truth for {names[i].split('/')[-1]}. {metric_name} = {metric_value:.2f}"))
-        prediction_logger.append(wandb.Image(depth_map_color_scale(pred[i].cpu().numpy()), caption=f"Predicted depth map for {names[i].split('/')[-1]}. {metric_name} = {metric_value:.2f}"))
+        image_logger.append(
+            wandb.Image(
+                original_image,
+                caption=f"Input image for {names[i].split('/')[-1]}. {metric_name} = {metric_value:.2f}",
+            )
+        )
+        depth_logger.append(
+            wandb.Image(
+                depth_map_color_scale(depth_map[i].cpu().numpy()),
+                caption=f"Ground truth for {names[i].split('/')[-1]}. {metric_name} = {metric_value:.2f}",
+            )
+        )
+        prediction_logger.append(
+            wandb.Image(
+                depth_map_color_scale(pred[i].cpu().numpy()),
+                caption=f"Predicted depth map for {names[i].split('/')[-1]}. {metric_name} = {metric_value:.2f}",
+            )
+        )
     wandb.log(
         {
             "Worst performing batch sample Images": image_logger,

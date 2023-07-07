@@ -1,5 +1,6 @@
 import torch
 
+
 def get_midas_env(model_name: str, pretrained: bool = True):
     """
     Returns the model and the necessary transforms for the MiDaS model
@@ -17,5 +18,5 @@ def get_midas_env(model_name: str, pretrained: bool = True):
         transform = midas_transforms.dpt_transform
     else:
         transform = midas_transforms.small_transform
-    
-    return midas, transform 
+
+    return midas, transform
