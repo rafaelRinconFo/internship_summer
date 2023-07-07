@@ -13,7 +13,7 @@ from metrics import image_logger, log_metrics
 from scripts import create_run_directory
 
 from tqdm import tqdm
-
+from distutils.util import strtobool
 
 class Trainer:
     def __init__(
@@ -125,7 +125,7 @@ def main():
         params = yaml.load(file, Loader=yaml.FullLoader)
 
     arparser = argparse.ArgumentParser()
-    arparser.add_argument("--toy", type=bool, default=False)
+    arparser.add_argument("--toy", type=strtobool, default=False)
     args = arparser.parse_args()
     toy = args.toy
 
