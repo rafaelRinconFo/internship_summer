@@ -32,6 +32,12 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
 
             if len(pred.shape) == 2:
                 pred = pred.unsqueeze(0)
+
+            print(f'Shape for pred:')
+            print(pred.shape)
+            print(f'Average for pred:')
+            print(torch.mean(pred))
+
             image_logger.append(
                 wandb.Image(
                     original_image, caption=f"Input image for {names[0].split('/')[-1]}"
@@ -64,6 +70,10 @@ def worst_samples_image_logger(wandb, n_images, batch, pred, metric_value, metri
     depth_logger = []
     prediction_logger = []
     image, depth_map, names = batch
+
+    if len(names) < n_images:
+        n_images = len(names)
+
     for i in range(n_images):
         original_image = cv2.imread(names[i])
 
