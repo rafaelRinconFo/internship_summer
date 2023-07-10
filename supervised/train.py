@@ -6,7 +6,7 @@ import argparse
 import os
 import wandb
 import yaml
-
+import datetime
 
 from supervised import get_midas_env, SSIM, ScaleInvariantLoss
 from metrics import image_logger, log_metrics
@@ -161,8 +161,9 @@ def main():
     if wandb_api_key:
         wandb.login(key=wandb_api_key)
         pretrained_str = "pretrained" if pretrained else "not_pretrained"
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
         run = wandb.init(
-            name=f"supervised_{model_type}_{pretrained_str}_{run_directory.split('/')[-1]}",
+            name=f"supervised_{model_type}_{pretrained_str}_{date_str}_{run_directory.split('/')[-1]}",
             # Set the project where this run will be logged
             project="supervised-midas",
             # Track hyperparameters and run metadata
