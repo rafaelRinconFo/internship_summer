@@ -99,7 +99,10 @@ def log_metrics(
                 worst_samples["batch"] = data
                 worst_samples["pred"] = pred
                 worst_samples["value"] = metrics_logger[worst_metric_criteria][-1]
-            elif metrics_logger[worst_metric_criteria][-1] > worst_samples["value"]:
+            elif (
+                worst_metric_criteria != "accuracy_threshold" 
+                and metrics_logger[worst_metric_criteria][-1] > worst_samples["value"]
+            ):
                 worst_samples["batch"] = data
                 worst_samples["pred"] = pred
                 worst_samples["value"] = metrics_logger[worst_metric_criteria][-1]
