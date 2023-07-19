@@ -10,3 +10,4 @@ desired_metrics: ["accuracy_threshold", "RMSE", "RMSLE"]
 worst_metric_criteria: accuracy_threshold # It can be RMSE, RMSLE, accuracy_threshold 
 worst_sample_number: 5 # Number of worst samples to save
 pretrained: True # If True, it will use the weights from the pretrained model
+seed: 42 # Seed for reproducibility

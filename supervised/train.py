@@ -140,6 +140,9 @@ def main():
     pretrained = params["pretrained"]
     worst_metric_criteria = params["worst_metric_criteria"]
     worst_sample_number = params["worst_sample_number"]
+    seed = params["seed"]
+
+    torch.manual_seed(seed)
 
     loss_dict = {
         # Same as mean absolute error
@@ -165,7 +168,7 @@ def main():
         run = wandb.init(
             name=f"supervised_{model_type}_{pretrained_str}_{date_str}_{run_directory.split('/')[-1]}",
             # Set the project where this run will be logged
-            project="supervised-midas",
+            project="depth-estimation",
             # Track hyperparameters and run metadata
             config={
                 "experiment_directory": run_directory,
