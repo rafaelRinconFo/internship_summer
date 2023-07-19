@@ -53,3 +53,43 @@ class SupervisedMidasDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.list_images_paths)
+
+
+class UnsupervisedDataset(torch.utils.data.Dataset):
+    def __init__(self, split_csv_file: str, transform=None, toy=False, split="train"):
+
+        self.df = pd.read_csv(os.path.join("datasets/", split_csv_file))
+        self.df = self.df[self.df["split"] == split]
+        self.list_images_paths = [
+            (os.path.join(f"datasets/{year}/dense/images", image_name), year)
+            for year, image_name in zip(self.df["year"], self.df["image_name"])
+        ]
+
+        self.transform = transform
+        
+        if toy:
+            self.list_images_paths = self.list_images_paths[
+                : int(len(self.list_images_paths) * 0.1)
+            ]
+
+
+    def __getitem__(self, index):
+
+        if index == len(self.list_images_paths)-1:
+            return None, None
+
+        # Load image and depth map
+        image_init, year_init = cv2.imread(self.list_images_paths[index])
+        image_final, year_fin = cv2.imread(self.list_images_paths[index+1])
+
+        if year_init != year_fin:
+            return None, None
+
+ 
+        if self.transform:
+            return self.transform(image_init), self.transform(image_final)
+
+        return image_init, image_final
+
+    def __len__(self):
+        return len(self.list_images_paths)
