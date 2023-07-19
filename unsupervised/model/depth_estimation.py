@@ -131,14 +131,6 @@ class DispNet(nn.Module):
         # Depth prediction
         return self.pred1(iconv1)
 
-class UnsupervisedNetwork(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        pass
-
-    def forward(self, x):
-        pass
-
-
 def main():
     model = DispNet()
     print(model)

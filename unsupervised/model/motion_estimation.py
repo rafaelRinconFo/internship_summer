@@ -92,9 +92,9 @@ class MotionFieldNet(nn.Module):
 
         image_height, image_width = x.size(2), x.size(3)
         if self.intrinsic_mat is None:
-            pass
-
-        intrinsic_mat = add_intrinsics_head(bottleneck, image_height, image_width)
+            intrinsic_mat = add_intrinsics_head(bottleneck, image_height, image_width)
+        else:
+            intrinsic_mat = self.intrinsic_mat.to(x.device)
 
         return rotation, background_translation, residual_translation, intrinsic_mat
 
