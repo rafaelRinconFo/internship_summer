@@ -92,7 +92,7 @@ class MotionFieldNet(nn.Module):
 
         image_height, image_width = x.size(2), x.size(3)
         if self.intrinsic_mat is None:
-            intrinsic_mat = add_intrinsics_head(bottleneck, image_height, image_width)
+            intrinsic_mat = add_intrinsics_head(bottleneck, image_height, image_width,x.device)
         else:
             intrinsic_mat = self.intrinsic_mat.to(x.device)
 
@@ -103,17 +103,22 @@ class MotionFieldNet(nn.Module):
     def _refine_motion_field(self, motion_field, layer, align_corners):
         _, _, h, w = layer.size()
         upsampled_motion_field = F.interpolate(motion_field, (h, w), mode='bilinear', align_corners=align_corners)
+        device = motion_field.device
         conv_input = torch.cat((upsampled_motion_field, layer), dim=1)
-        conv_output = nn.Conv2d(conv_input.size(1), max(4, layer.size(1)), kernel_size=3, stride=1, padding=1)(conv_input)
-        conv_input = nn.Conv2d(conv_input.size(1), max(4, layer.size(1)), kernel_size=3, stride=1,padding=1)(conv_input)
-        conv_output2 = nn.Conv2d(conv_input.size(1), max(4, layer.size(1)), kernel_size=3, stride=1, padding=1)(conv_input)
+        first_conv = nn.Conv2d(conv_input.size(1), max(4, layer.size(1)), kernel_size=3, stride=1, padding=1).to(device)
+        conv_output = first_conv(conv_input)
+        second_conv = nn.Conv2d(conv_input.size(1), max(4, layer.size(1)), kernel_size=3, stride=1, padding=1).to(device)
+        conv_input = second_conv(conv_input)
+        third_conv = nn.Conv2d(conv_input.size(1), max(4, layer.size(1)), kernel_size=3, stride=1, padding=1).to(device)
+        conv_output2 = third_conv(conv_input)
         conv_output = torch.cat([conv_output, conv_output2], dim=1)
-        final_conv = nn.Conv2d(conv_output.size(1), motion_field.size(1), kernel_size=1, stride=1, bias=False)(conv_output)
+        last_conv = nn.Conv2d(conv_output.size(1), motion_field.size(1), kernel_size=1, stride=1, bias=False).to(device)
+        final_conv = last_conv(conv_output)
         return upsampled_motion_field + final_conv# nn.Conv2d(conv_output.size(1), motion_field.size(1), kernel_size=1, stride=1, bias=False)(conv_output)
 
 
 
-def add_intrinsics_head(bottleneck, image_height, image_width):
+def add_intrinsics_head(bottleneck, image_height, image_width, device):
     """Adds a head the preficts camera intrinsics.
 
     Args:
@@ -139,22 +144,22 @@ def add_intrinsics_head(bottleneck, image_height, image_width):
             self.offsets = nn.Conv2d(bottleneck.size(1), 2, kernel_size=1)
 
         def forward(self, bottleneck):
-
 #           focal_lengths = self.foci(bottleneck)
             focal_lengths = (self.foci(bottleneck).squeeze(dim=(2, 3)) *
-                             torch.tensor([[image_width, image_height]], dtype=torch.float32))#.softmax(dim=1)
+                             torch.tensor([[image_width, image_height]], dtype=torch.float32).to(device))#.softmax(dim=1)
 #            print('focal_lengths')
             offsets = (self.offsets(bottleneck).squeeze(dim=(2, 3)) + 0.5) * torch.tensor([[image_width, image_height]],
-                                                                                             dtype=torch.float32)
+                                                                                             dtype=torch.float32).to(device)
             foci = torch.diag_embed(focal_lengths)
 
             intrinsic_mat = torch.cat([foci, offsets.unsqueeze(dim=2)], dim=2)
-            last_row = torch.tensor([[[0.0, 0.0, 1.0]]], dtype=torch.float32).repeat(bottleneck.size(0), 1, 1)
+            last_row = torch.tensor([[[0.0, 0.0, 1.0]]], dtype=torch.float32).repeat(bottleneck.size(0), 1, 1).to(device)
             intrinsic_mat = torch.cat([intrinsic_mat, last_row], dim=1)
 
             return intrinsic_mat
 
     model = CameraIntrinsics()
+    model.to(device)
 
     intrinsic_mat = model(bottleneck)
     return intrinsic_mat
