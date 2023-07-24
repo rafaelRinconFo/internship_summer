@@ -4,8 +4,6 @@ from scripts import UnsupervisedDataset
 from unsupervised import DispNet, MotionFieldNet
 from torchvision import transforms as T
 
-print('Successfuly imported')
-
 import argparse
 
 import os
@@ -15,7 +13,7 @@ import datetime
 
 from metrics import image_logger_unsupervised, log_metrics
 from scripts import create_run_directory
-
+from unsupervised.losses import l1smoothness, sqrt_sparsity, joint_bilateral_smoothing
 
 
 from tqdm import tqdm
@@ -23,7 +21,16 @@ from distutils.util import strtobool
 
 
 class Trainer:
-    def __init__(self, depth_est_network, motion_est_network, train_dataloader, val_dataloader, optimizer, losses) -> None:
+    def __init__(
+        self,
+        depth_est_network,
+        motion_est_network,
+        train_dataloader,
+        val_dataloader,
+        optimizer,
+        loss_dict,
+        hyperparams,
+    ) -> None:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # Moves the model to the GPU if available
         self.depth_est_network = depth_est_network.to(self.device)
@@ -31,58 +38,111 @@ class Trainer:
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.optimizer = optimizer
+        self.loss_dict = loss_dict
+        self.hyperparams = hyperparams
 
     def train_epoch(self, dataloader):
         """ Trains the simple model for one epoch. losses_resolution indicates how often training_loss should be printed and stored. """
-        self.model.train()
+        # training mode, equivalent to "network.train(True)"
+        self.depth_est_network.train()
+        self.motion_est_network.train()
         train_losses = []
 
         for data in tqdm(dataloader, desc="Training"):
-            image_1, image_2, _ = data
+
+            if data is None:
+                continue
+
+            image_1, image_2 = data
+
             # Moving to GPU
             image_1 = image_1.to(self.device)
-            image_1 = image_1.squeeze(1)
-
             image_2 = image_2.to(self.device)
-            image_2 = image_2.squeeze(1)
 
             # Sets the gradients attached to the parameters objects to zero.
             self.optimizer.zero_grad()
             # Predictions for the depth network
 
             pred_1 = self.depth_est_network(image_1)
+            print(pred_1.shape)
 
-            pred_1 = torch.nn.functional.interpolate(
-                pred_1.unsqueeze(1),
-                size=image_1.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
-            ).squeeze()
+            # pred_1 = torch.nn.functional.interpolate(
+            #     pred_1.unsqueeze(1),
+            #     size=image_1.shape[-2:],
+            #     mode="bicubic",
+            #     align_corners=False,
+            # ).squeeze()
 
-            if len(pred_1.shape) == 2:
-                pred_1 = pred_1.unsqueeze(0)
-
+            # if len(pred_1.shape) == 2:
+            #     pred_1 = pred_1.unsqueeze(0)
+            print("Starting second inference")
             pred_2 = self.depth_est_network(image_2)
+            print(pred_2.shape)
 
-            pred_2 = torch.nn.functional.interpolate(
-                pred_1.unsqueeze(1),
-                size=image_1.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
-            ).squeeze()
+            # pred_2 = torch.nn.functional.interpolate(
+            #     pred_1.unsqueeze(1),
+            #     size=image_1.shape[-2:],
+            #     mode="bicubic",
+            #     align_corners=False,
+            # ).squeeze()
 
             if len(pred_2.shape) == 2:
                 pred_2 = pred_2.unsqueeze(0)
 
-
             # Inputs for the motion network
             motion_input = torch.cat([image_1, pred_1, image_2, pred_2], dim=1)
+            motion_input_inv = torch.cat([image_2, pred_2, image_1, pred_1], dim=1)
 
             # Predictions for the motion network
-            rotation, background_translation, residual_translation, intrinsic_mat =  self.motion_est_network(image_1, pred_1)
+            print("Starting motion inference")
+            rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
+                motion_input
+            )
 
+            print(rotation.shape)
+            print(background_translation.shape)
+            print(residual_translation.shape)
+            print(intrinsic_mat.shape)
+            print("Starting motion inference inverse")
+            rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
+                motion_input_inv
+            )
+            print(rotation_inv.shape)
+            print(background_translation_inv.shape)
+            print(residual_translation_inv.shape)
+            print(intrinsic_mat_inv.shape)
 
-
+            L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
+                "l1smoothness"
+            ](residual_translation) + self.hyperparams["beta_motion"] * self.loss_dict[
+                "sqrt_sparsity"
+            ](
+                residual_translation
+            )
+            print('L motion regularization')
+            print(L_reg_mot)
+            L_reg_mot_inv = self.hyperparams["alpha_motion"] * self.loss_dict[
+                "l1smoothness"
+            ](residual_translation_inv) + self.hyperparams[
+                "beta_motion"
+            ] * self.loss_dict[
+                "sqrt_sparsity"
+            ](
+                residual_translation_inv
+            )
+            print('L motion regularization inverse')
+            print(L_reg_mot_inv)
+            L_reg_dep_1 = self.hyperparams["alpha_depth"] * self.loss_dict[
+                "joint_bilateral_smoothing"
+            ](pred_1, image_1)
+            print('L depth regularization 1')
+            print(L_reg_dep_1)
+            L_reg_dep_2 = self.hyperparams["alpha_depth"] * self.loss_dict[
+                "joint_bilateral_smoothing"
+            ](pred_2, image_2)
+            print('L depth regularization 2')
+            print(L_reg_dep_2)
+            return
             # Compute loss
             loss = self.loss(pred, depth_map)
 
@@ -100,7 +160,8 @@ class Trainer:
 
     def validation_epoch(self, dataloader):
         "Set evaluation mode for encoder and decoder"
-        self.model.eval()  # evaluation mode, equivalent to "network.train(False)""
+        self.depth_est_network.eval()  # evaluation mode, equivalent to "network.train(False)""
+        self.motion_est_network.eval()  # evaluation mode, equivalent to "network.train(False)""
         val_losses = []
         with torch.no_grad():  # No need to track the gradients
 
@@ -141,6 +202,7 @@ class Trainer:
         average_val_loss = sum(val_losses) / len(val_losses)
         return average_val_loss
 
+
 def main():
     # Read arguments from yaml file
     with open("configs/unsupervised_params.yml", "r") as file:
@@ -152,7 +214,8 @@ def main():
     toy = args.toy
 
     csv_split = params["csv_split"]
-    model_type = params["model_type"]
+    depth_model = params["depth_model"]
+    motion_model = params["motion_model"]
     batch_size = params["batch_size"]
     epochs = params["epochs"]
     lr = params["lr"]
@@ -163,13 +226,23 @@ def main():
     worst_metric_criteria = params["worst_metric_criteria"]
     worst_sample_number = params["worst_sample_number"]
     seed = params["seed"]
+    hyperparams = {
+        "alpha_motion": params["alpha_motion"],
+        "beta_motion": params["beta_motion"],
+        "alpha_depth": params["alpha_depth"],
+    }
 
     torch.manual_seed(seed)
 
-    loss_dict = { }
-    loss_function = loss_dict[params["loss"]]
+    loss_dict = {
+        "l1smoothness": l1smoothness,
+        "sqrt_sparsity": sqrt_sparsity,
+        "joint_bilateral_smoothing": joint_bilateral_smoothing,
+    }
+    # TODO Change this, the loss here will work differently than in supervised
+    # loss_function = loss_dict[params["loss"]]
 
-    run_directory = create_run_directory(model_type)
+    run_directory = create_run_directory(depth_model)
 
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if wandb_api_key:
@@ -177,37 +250,36 @@ def main():
         pretrained_str = "pretrained" if pretrained else "not_pretrained"
         date_str = datetime.datetime.now().strftime("%Y-%m-%d")
         run = wandb.init(
-            name=f"unsupervised_{model_type}_{pretrained_str}_{date_str}_{run_directory.split('/')[-1]}",
+            name=f"unsupervised_{depth_model}_{pretrained_str}_{date_str}_{run_directory.split('/')[-1]}",
             # Set the project where this run will be logged
             project="depth-estimation",
             # Track hyperparameters and run metadata
             config={
                 "experiment_directory": run_directory,
-                "loss": params["loss"],
+                # "loss": params["loss"],
                 "learning_rate": lr,
                 "epochs": epochs,
                 "batch_size": batch_size,
                 "weight_decay": weight_decay,
-                "model_type": model_type,
+                "depth_model": depth_model,
+                "motion_model": motion_model,
                 "csv_split": csv_split,
                 "pretrained": pretrained,
+                "alpha_motion": hyperparams["alpha_motion"],
+                "beta_motion": hyperparams["beta_motion"],
             },
         )
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
 
-
-    depth_est_network = DispNet()   
-    motion_est_network = MotionFieldNet()    
-    params = list(depth_est_network.parameters()) + list(motion_est_network.parameters())
+    depth_est_network = DispNet()
+    motion_est_network = MotionFieldNet()
+    params = list(depth_est_network.parameters()) + list(
+        motion_est_network.parameters()
+    )
     optim = torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
 
-    transforms = T.Compose(
-        [
-            T.ToTensor(),
-            T.Resize((720, 1280)),
-        ]
-    )
+    transforms = T.Compose([T.ToTensor(), T.Resize((512, 1024), antialias=True)])
 
     if toy:
         print(
@@ -239,9 +311,17 @@ def main():
         num_workers=4,
     )
 
-    trainer = Trainer(depth_est_network, motion_est_network, train_loader, val_loader, optim, loss_dict)
+    trainer = Trainer(
+        depth_est_network,
+        motion_est_network,
+        train_loader,
+        val_loader,
+        optim,
+        loss_dict,
+        hyperparams
+    )
 
-    print(f"Training process for the {model_type} model")
+    print(f"Training process for the {depth_model} model")
     for epoch in range(epochs):
         print(f"Epoch {epoch}")
         train_losses = trainer.train_epoch(train_loader)
@@ -262,7 +342,13 @@ def main():
             except Exception as e:
                 print(f"Error saving model: {e}")
         if wandb_api_key:
-            image_logger_unsupervised(depth_est_network,motion_est_network, test_loader, wandb, trainer.device)
+            image_logger_unsupervised(
+                depth_est_network,
+                motion_est_network,
+                test_loader,
+                wandb,
+                trainer.device,
+            )
             # if epoch % log_metrics_every == 0:
             #     log_metrics(
             #         model,
