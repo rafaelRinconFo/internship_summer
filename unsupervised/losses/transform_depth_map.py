@@ -142,7 +142,7 @@ def _using_motion_vector(
     if translation.dim() == 2:
         translation = torch.unsqueeze(torch.unsqueeze(translation, 1), 1)
     _, height, width = depth.shape
-    print('Got here 1')
+    
     grid = torch.squeeze(
         torch.stack(
             torch.meshgrid(
@@ -153,32 +153,27 @@ def _using_motion_vector(
         ),
         dim=3,
     )
-    print('Printing grid')
-    print(grid)
-    print('Got here 2')
+    
     grid = grid.type(torch.FloatTensor).to(device=depth.device)
 
-    print('Got here 3')
+    
     if intrinsic_mat_inv is None:
         intrinsic_mat_inv = torch.inverse(intrinsic_mat).to(device=intrinsic_mat.device)
     # Use the depth map and the inverse intrinsic matrix to generate a point
     # cloud xyz.
-    print('Got here 4')
-    print('intrinsic_mat_inv', intrinsic_mat_inv.shape)
-    print('grid', grid.shape)
-    print('depth', depth.shape)
+    
     xyz = torch.einsum("bij,jhw,bhw->bihw", intrinsic_mat_inv, grid, depth)
-
+    
     # TPU pads aggressively tensors that have small dimensions. Therefore having
     # A rotation of the shape [....., 3, 3] would overflow the HBM memory. To
     # address this, we represnet the rotations is a 3x3 nested python tuple of
     # torch.Tensors (that is, we unroll the rotation matrix at the small dimensions).
     # The 3x3 matrix multiplication is now done in a python loop, and tensors with
     # small dimensions are avoided.
-    print('Got here 5')
+
     unstacked_xyz = torch.unbind(xyz, dim=1)
     unstacked_rotation_matrix = transform_utils.unstacked_matrix_from_angles(
-        *torch.unbind(rotation_angles, dim=-1)
+        *torch.unbind(rotation_angles, dim=1)
     )
     rank_diff = unstacked_xyz[0].dim() - unstacked_rotation_matrix[0][0].dim()
 
@@ -194,16 +189,13 @@ def _using_motion_vector(
                 expand_to_needed_rank(unstacked_rotation_matrix[i][j])
                 * unstacked_xyz[j]
             )
-    print('Got here 6')
     rotated_xyz = torch.stack(unstacked_rotated_xyz, dim=1).to(
         device=intrinsic_mat.device
     )
 
     # Project the transformed point cloud back to the camera plane.
     pcoords = torch.einsum("bij,bjhw->bihw", intrinsic_mat, rotated_xyz)
-
-    print('Got here 7')
-    projected_translation = torch.einsum("bij,bhwj->bihw", intrinsic_mat, translation)
+    projected_translation = torch.einsum("bij,bjhw->bihw", intrinsic_mat, translation)
     pcoords = pcoords + projected_translation
     x, y, z = torch.unbind(pcoords, dim=1)
     return x / z, y / z, z
