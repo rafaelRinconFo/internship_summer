@@ -1,1 +1,3 @@
 from .regularizers import l1smoothness, sqrt_sparsity, joint_bilateral_smoothing
+from .consistency_losses import motion_field_consistency_loss
+from .transform_depth_map import using_motion_vector

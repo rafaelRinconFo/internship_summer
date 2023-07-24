@@ -4,8 +4,8 @@ from __future__ import print_function
 
 import torch
 
-import transform_utils
-from consistency_losses import multiply_no_nan
+import unsupervised.losses.transform_utils as transform_utils
+from unsupervised.losses.consistency_losses import multiply_no_nan
 
 
 class TransformedDepthMap(object):
@@ -48,15 +48,16 @@ class TransformedDepthMap(object):
         # Unlike equality, compatibility is not transitive, so we have to check all
         # pairs.
         for i in range(len(attrs)):
-          for j in range(i):
-            tensor_i = self.__dict__[attrs[i]]
-            tensor_j = self.__dict__[attrs[j]]
-            if not (tensor_i.shape == tensor_j.shape):
-              raise ValueError(
-                  'All tensors in TransformedDepthMap\'s constructor must have '
-                  'compatible shapes, however \'%s\' and \'%s\' have the '
-                  'incompatible shapes %s and %s.' %
-                  (attrs[i][1:], attrs[j][1:], tensor_i.shape, tensor_j.shape))
+            for j in range(i):
+                tensor_i = self.__dict__[attrs[i]]
+                tensor_j = self.__dict__[attrs[j]]
+                if not (tensor_i.shape == tensor_j.shape):
+                    raise ValueError(
+                        "All tensors in TransformedDepthMap's constructor must have "
+                        "compatible shapes, however '%s' and '%s' have the "
+                        "incompatible shapes %s and %s."
+                        % (attrs[i][1:], attrs[j][1:], tensor_i.shape, tensor_j.shape)
+                    )
         self._pixel_xy = None
 
     @property
@@ -78,35 +79,95 @@ class TransformedDepthMap(object):
     @property
     def pixel_xy(self):
         if self._pixel_xy is None:
-          name = self._pixel_x.op.name.rsplit('/', 1)[0]
-          self._pixel_xy = torch.stack([self._pixel_x, self._pixel_y],
-                                    dim=3)
+            name = self._pixel_x.op.name.rsplit("/", 1)[0]
+            self._pixel_xy = torch.stack([self._pixel_x, self._pixel_y], dim=3)
         return self._pixel_xy
 
-def _using_motion_vector(depth, translation, rotation_angles, intrinsic_mat,
-    intrinsic_mat_inv=None):
+
+def using_motion_vector(
+    depth,
+    translation,
+    rotation_angles,
+    intrinsic_mat,
+    intrinsic_mat_inv=None,
+    distortion_coeff=None,
+    name=None,
+):
+    """Transforms a depth map using a motion vector, or a motion vector field.
+  This function receives a translation vector and rotation angles vector. They
+  can be the same for the entire image, or different for each pixel.
+  Args:
+    depth: A torch.Tensor of shape [B, H, W]
+    translation: A torch.Tensor of shape [B, 3] or [B, H, W, 3] representing a
+      translation vector for the entire image or for every pixel respectively.
+    rotation_angles: A torch.Tensor of shape [B, 3] or [B, H, W, 3] representing a
+      set of rotation angles for the entire image or for every pixel
+      respectively. We conform to the same convention as in inverse_warp above,
+      but may need to reconsider, depending on the conventions tf.graphics and
+      other users will converge to.
+    intrinsic_mat: A torch.Tensor of shape [B, 3, 3].
+    intrinsic_mat_inv: A torch.Tensor of shape [B, 3, 3], containing the inverse
+      of intrinsic_mat. If None, intrinsic_mat_inv will be calculated from
+      intrinsic_mat. Providing intrinsic_mat_inv directly is useful for TPU,
+      where matrix inversion is not supported.
+    distortion_coeff: A scalar (python or torch.Tensor) of a floating point type,
+      or None, the quadratic radial distortion coefficient. If 0.0 or None, a
+      distortion-less implementation (which is simpler and maybe faster) will be
+      used.
+    name: A string or None, a name scope for the ops.
+  Returns:
+    A TransformedDepthMap object.
+  """
+
+    pixel_x, pixel_y, z = _using_motion_vector(
+        depth, translation, rotation_angles, intrinsic_mat, intrinsic_mat_inv
+    )
+    pixel_x, pixel_y, mask = _clamp_and_filter_result(pixel_x, pixel_y, z)
+    return TransformedDepthMap(pixel_x, pixel_y, z, mask)
+
+
+def _using_motion_vector(
+    depth, translation, rotation_angles, intrinsic_mat, intrinsic_mat_inv=None
+):
     """A helper for using_motion_vector. See docstring therein."""
 
     if translation.dim() not in (2, 4):
-        raise ValueError('\'translation\' should have rank 2 or 4, not %d' %
-              translation.dim())
-    if translation.shape[-1] != 3:
-        raise ValueError('translation\'s last dimension should be 3, not %d' %
-                        translation.shape[1])
+        raise ValueError(
+            "'translation' should have rank 2 or 4, not %d" % translation.dim()
+        )
+    if translation.shape[1] != 3:
+        raise ValueError(
+            "translation's last dimension should be 3, not %d" % translation.shape[1]
+        )
     if translation.dim() == 2:
         translation = torch.unsqueeze(torch.unsqueeze(translation, 1), 1)
     _, height, width = depth.shape
+    print('Got here 1')
     grid = torch.squeeze(
-          torch.stack(torch.meshgrid(torch.arange(0,end=height, dtype=torch.float), 
-                      torch.arange(0, end=width, dtype=torch.float), 
-                      torch.tensor([1.0,]))), dim=3)
+        torch.stack(
+            torch.meshgrid(
+                torch.arange(0, end=height, dtype=torch.float),
+                torch.arange(0, end=width, dtype=torch.float),
+                torch.tensor([1.0]),
+            )
+        ),
+        dim=3,
+    )
+    print('Printing grid')
+    print(grid)
+    print('Got here 2')
     grid = grid.type(torch.FloatTensor).to(device=depth.device)
-    
+
+    print('Got here 3')
     if intrinsic_mat_inv is None:
         intrinsic_mat_inv = torch.inverse(intrinsic_mat).to(device=intrinsic_mat.device)
     # Use the depth map and the inverse intrinsic matrix to generate a point
     # cloud xyz.
-    xyz = torch.einsum('bij,jhw,bhw->bihw', intrinsic_mat_inv, grid, depth)
+    print('Got here 4')
+    print('intrinsic_mat_inv', intrinsic_mat_inv.shape)
+    print('grid', grid.shape)
+    print('depth', depth.shape)
+    xyz = torch.einsum("bij,jhw,bhw->bihw", intrinsic_mat_inv, grid, depth)
 
     # TPU pads aggressively tensors that have small dimensions. Therefore having
     # A rotation of the shape [....., 3, 3] would overflow the HBM memory. To
@@ -114,12 +175,12 @@ def _using_motion_vector(depth, translation, rotation_angles, intrinsic_mat,
     # torch.Tensors (that is, we unroll the rotation matrix at the small dimensions).
     # The 3x3 matrix multiplication is now done in a python loop, and tensors with
     # small dimensions are avoided.
+    print('Got here 5')
     unstacked_xyz = torch.unbind(xyz, dim=1)
     unstacked_rotation_matrix = transform_utils.unstacked_matrix_from_angles(
-        *torch.unbind(rotation_angles, dim=-1))
-    rank_diff = (
-        unstacked_xyz[0].dim() -
-        unstacked_rotation_matrix[0][0].dim())
+        *torch.unbind(rotation_angles, dim=-1)
+    )
+    rank_diff = unstacked_xyz[0].dim() - unstacked_rotation_matrix[0][0].dim()
 
     def expand_to_needed_rank(t):
         for _ in range(rank_diff):
@@ -129,18 +190,24 @@ def _using_motion_vector(depth, translation, rotation_angles, intrinsic_mat,
     unstacked_rotated_xyz = [0.0] * 3
     for i in range(3):
         for j in range(3):
-          unstacked_rotated_xyz[i] += expand_to_needed_rank(
-              unstacked_rotation_matrix[i][j]) * unstacked_xyz[j]
-    rotated_xyz = torch.stack(unstacked_rotated_xyz, dim=1).to(device=intrinsic_mat.device)
+            unstacked_rotated_xyz[i] += (
+                expand_to_needed_rank(unstacked_rotation_matrix[i][j])
+                * unstacked_xyz[j]
+            )
+    print('Got here 6')
+    rotated_xyz = torch.stack(unstacked_rotated_xyz, dim=1).to(
+        device=intrinsic_mat.device
+    )
 
     # Project the transformed point cloud back to the camera plane.
-    pcoords = torch.einsum('bij,bjhw->bihw', intrinsic_mat, rotated_xyz)
+    pcoords = torch.einsum("bij,bjhw->bihw", intrinsic_mat, rotated_xyz)
 
-    projected_translation = torch.einsum('bij,bhwj->bihw', intrinsic_mat,
-                                      translation)
+    print('Got here 7')
+    projected_translation = torch.einsum("bij,bhwj->bihw", intrinsic_mat, translation)
     pcoords = pcoords + projected_translation
     x, y, z = torch.unbind(pcoords, dim=1)
     return x / z, y / z, z
+
 
 def _clamp_and_filter_result(pixel_x, pixel_y, z):
     """Clamps and masks out out-of-bounds pixel coordinates.
@@ -166,6 +233,7 @@ def _clamp_and_filter_result(pixel_x, pixel_y, z):
 
     def _tensor(x):
         return torch.FloatTensor(x)
+
     x_not_underflow = pixel_x >= 0.0
     y_not_underflow = pixel_y >= 0.0
     x_not_overflow = pixel_x < width - 1
@@ -175,15 +243,21 @@ def _clamp_and_filter_result(pixel_x, pixel_y, z):
     y_not_nan = torch.logical_not(torch.isnan(pixel_y))
     not_nan = torch.logical_and(x_not_nan, y_not_nan)
     not_nan_mask = not_nan.type(torch.FloatTensor).to(device=pixel_x.device)
-    pixel_x = multiply_no_nan(pixel_x, not_nan_mask) # TODO
-    pixel_y = multiply_no_nan(pixel_y, not_nan_mask) # TODO
+    pixel_x = multiply_no_nan(pixel_x, not_nan_mask)  # TODO
+    pixel_y = multiply_no_nan(pixel_y, not_nan_mask)  # TODO
     pixel_x = torch.clamp(pixel_x, 0.0, width - 1)
     pixel_y = torch.clamp(pixel_y, 0.0, height - 1)
-    mask_stack = torch.stack([
-        x_not_underflow, y_not_underflow, x_not_overflow, y_not_overflow,
-        z_positive, not_nan
-    ],
-                          axis=0)
+    mask_stack = torch.stack(
+        [
+            x_not_underflow,
+            y_not_underflow,
+            x_not_overflow,
+            y_not_overflow,
+            z_positive,
+            not_nan,
+        ],
+        axis=0,
+    )
     mask = torch.all(mask_stack, dim=0)
     return pixel_x, pixel_y, mask
 
@@ -211,9 +285,9 @@ def quadraric_distortion_scale(distortion_coefficient, r_squared):
     return 1 + distortion_coefficient * r_squared
 
 
-def quadratic_inverse_distortion_scale(distortion_coefficient,
-                                       distorted_r_squared,
-                                       newton_iterations=4):
+def quadratic_inverse_distortion_scale(
+    distortion_coefficient, distorted_r_squared, newton_iterations=4
+):
     """Calculates the inverse quadratic distortion function given squared radii.
     The distortion factor is 1.0 + `distortion_coefficient` * `r_squared`. When
     `distortion_coefficient` is negative (barrel distortion), the distorted radius
@@ -243,9 +317,9 @@ def quadratic_inverse_distortion_scale(distortion_coefficient,
     # Newton-Raphson iterations for solving the inverse function of the
     # distortion.
     for _ in range(newton_iterations):
-      c = (1.0 -
-            (2.0 / 3.0) * c) / (1.0 + 3 * distortion_coefficient *
-                                distorted_r_squared * c * c) + (2.0 / 3.0) * c
+        c = (1.0 - (2.0 / 3.0) * c) / (
+            1.0 + 3 * distortion_coefficient * distorted_r_squared * c * c
+        ) + (2.0 / 3.0) * c
     return c
 
 

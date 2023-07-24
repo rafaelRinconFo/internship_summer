@@ -1,7 +1,7 @@
 import torch
 
-import resampler
-import transform_utils
+import unsupervised.losses.resampler as resampler
+import unsupervised.losses.transform_utils as transform_utils
 
 def multiply_no_nan(a, b):
     res = torch.mul(a, b)
@@ -194,6 +194,7 @@ def motion_field_consistency_loss(frame1transformed_pixelx,
     rot1_scale = torch.mean(torch.square(rotation1matrix - eye), dim=(3, 4))
     rot2_scale = torch.mean(torch.square(rotation2matrix - eye), dim=(3, 4))
     rot_error = rot_error / (1e-24 + rot1_scale + rot2_scale)
+    # Until here we have the rotation error. This should be multiplied by the alpha_cyc
     rotation_error = torch.mean(rot_error)
 
     def norm(x):

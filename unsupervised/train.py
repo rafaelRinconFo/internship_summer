@@ -13,7 +13,8 @@ import datetime
 
 from metrics import image_logger_unsupervised, log_metrics
 from scripts import create_run_directory
-from unsupervised.losses import l1smoothness, sqrt_sparsity, joint_bilateral_smoothing
+from unsupervised.losses import l1smoothness, sqrt_sparsity, joint_bilateral_smoothing, using_motion_vector
+from unsupervised.losses.intrinsics_utils import invert_intrinsics_matrix
 
 
 from tqdm import tqdm
@@ -63,8 +64,8 @@ class Trainer:
             self.optimizer.zero_grad()
             # Predictions for the depth network
 
-            pred_1 = self.depth_est_network(image_1)
-            print(pred_1.shape)
+            depth_pred_1 = self.depth_est_network(image_1)
+            print(depth_pred_1.shape)
 
             # pred_1 = torch.nn.functional.interpolate(
             #     pred_1.unsqueeze(1),
@@ -76,8 +77,8 @@ class Trainer:
             # if len(pred_1.shape) == 2:
             #     pred_1 = pred_1.unsqueeze(0)
             print("Starting second inference")
-            pred_2 = self.depth_est_network(image_2)
-            print(pred_2.shape)
+            depth_pred_2 = self.depth_est_network(image_2)
+            print(depth_pred_2.shape)
 
             # pred_2 = torch.nn.functional.interpolate(
             #     pred_1.unsqueeze(1),
@@ -86,19 +87,19 @@ class Trainer:
             #     align_corners=False,
             # ).squeeze()
 
-            if len(pred_2.shape) == 2:
-                pred_2 = pred_2.unsqueeze(0)
+            if len(depth_pred_2.shape) == 2:
+                depth_pred_2 = depth_pred_2.unsqueeze(0)
 
             # Inputs for the motion network
-            motion_input = torch.cat([image_1, pred_1, image_2, pred_2], dim=1)
-            motion_input_inv = torch.cat([image_2, pred_2, image_1, pred_1], dim=1)
+            motion_input = torch.cat([image_1, depth_pred_1, image_2, depth_pred_2], dim=1)
+            motion_input_inv = torch.cat([image_2, depth_pred_2, image_1, depth_pred_1], dim=1)
 
             # Predictions for the motion network
             print("Starting motion inference")
             rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
                 motion_input
             )
-
+            total_translation = torch.add(residual_translation,background_translation)
             print(rotation.shape)
             print(background_translation.shape)
             print(residual_translation.shape)
@@ -107,6 +108,7 @@ class Trainer:
             rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
                 motion_input_inv
             )
+            total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
             print(rotation_inv.shape)
             print(background_translation_inv.shape)
             print(residual_translation_inv.shape)
@@ -114,35 +116,47 @@ class Trainer:
 
             L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
                 "l1smoothness"
-            ](residual_translation) + self.hyperparams["beta_motion"] * self.loss_dict[
+            ](total_translation) + self.hyperparams["beta_motion"] * self.loss_dict[
                 "sqrt_sparsity"
             ](
-                residual_translation
+                total_translation
             )
             print('L motion regularization')
             print(L_reg_mot)
             L_reg_mot_inv = self.hyperparams["alpha_motion"] * self.loss_dict[
                 "l1smoothness"
-            ](residual_translation_inv) + self.hyperparams[
+            ](total_translation_inv) + self.hyperparams[
                 "beta_motion"
             ] * self.loss_dict[
                 "sqrt_sparsity"
             ](
-                residual_translation_inv
+                total_translation_inv
             )
             print('L motion regularization inverse')
             print(L_reg_mot_inv)
             L_reg_dep_1 = self.hyperparams["alpha_depth"] * self.loss_dict[
                 "joint_bilateral_smoothing"
-            ](pred_1, image_1)
+            ](depth_pred_1, image_1)
             print('L depth regularization 1')
             print(L_reg_dep_1)
             L_reg_dep_2 = self.hyperparams["alpha_depth"] * self.loss_dict[
                 "joint_bilateral_smoothing"
-            ](pred_2, image_2)
+            ](depth_pred_2, image_2)
             print('L depth regularization 2')
             print(L_reg_dep_2)
+            print('Transforming the depth map')
+            print(f'This is the total translation shape {total_translation.shape}')
+            print('Inverting the intrinsics matrix')
+            inverse_intrinsics_mat = invert_intrinsics_matrix(intrinsic_mat)
+
+            print(f'Shape of the inverse intrinsics matrix {inverse_intrinsics_mat.shape}')
+            transformed_depth = using_motion_vector(
+                torch.squeeze(depth_pred_1, dim=1), total_translation, rotation,
+                intrinsic_mat,inverse_intrinsics_mat)
+            
+            print('L consistency regularization')
             return
+            
             # Compute loss
             loss = self.loss(pred, depth_map)
 
@@ -230,6 +244,8 @@ def main():
         "alpha_motion": params["alpha_motion"],
         "beta_motion": params["beta_motion"],
         "alpha_depth": params["alpha_depth"],
+        "alpha_cyc": params["alpha_cyc"],
+        "beta_cyc": params["beta_cyc"],
     }
 
     torch.manual_seed(seed)
@@ -326,8 +342,8 @@ def main():
         print(f"Epoch {epoch}")
         train_losses = trainer.train_epoch(train_loader)
         print(f"Average train loss: {train_losses}")
-        val_losses = trainer.validation_epoch(val_loader)
-        print(f"Average validation loss: {val_losses}")
+        #val_losses = trainer.validation_epoch(val_loader)
+        #print(f"Average validation loss: {val_losses}")
         if epoch % 10 == 0:
             print("Saving model")
             try:
@@ -361,7 +377,7 @@ def main():
             #         worst_sample_number=worst_sample_number,
             #     )
             wandb.log({"loss": train_losses}, commit=False)
-            wandb.log({"val_loss": val_losses})
+            #wandb.log({"val_loss": val_losses})
 
 
 if __name__ == "__main__":
