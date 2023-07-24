@@ -76,14 +76,16 @@ class UnsupervisedDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
 
         if index == len(self.list_images_paths)-1:
-            return None, None
+            return None
 
         # Load image and depth map
-        image_init, year_init = cv2.imread(self.list_images_paths[index])
-        image_final, year_fin = cv2.imread(self.list_images_paths[index+1])
-
+        
+        path_init, year_init = self.list_images_paths[index]
+        path_final, year_fin = self.list_images_paths[index+1]
+        image_init= cv2.imread(path_init)
+        image_final=cv2.imread(path_final)
         if year_init != year_fin:
-            return None, None
+            return None
 
  
         if self.transform:
