@@ -17,7 +17,8 @@ def matrix_from_angles(rot):
     rank = rot.dim()
     # Swap the two last dimensions
     perm = torch.cat([torch.arange(0, rank - 1, dtype=torch.long), torch.tensor([rank]), torch.tensor([rank - 1])], dim=0)
-    return euler_angles_to_matrix(-rot, convention="XYZ").permute(*perm)
+
+    return euler_angles_to_matrix(-rot)
 
 
 def angles_from_matrix(matrix):
@@ -90,13 +91,21 @@ def combine(rot_mat1, trans_vec1, rot_mat2, trans_vec2):
     # a row vector of 3 zeros. We see that the total rotation is R2*R1 and the t
     # total translation is R2*t1 + t2.
     r2r1 = torch.matmul(rot_mat2, rot_mat1)
-    r2t1 = torch.matmul(rot_mat2, torch.unsqueeze(trans_vec1, -1))
-    r2t1 = torch.squeeze(r2t1, axis=-1)
+
+
+    # Reshape the trans_vec1 tensor to have a compatible shape for matrix multiplication
+    trans_vec1_reshaped = trans_vec1.view(trans_vec1.shape[0], trans_vec1.shape[1], -1)  # shape: (batch_size, num_channels, height * width)
+
+    # Perform matrix multiplication
+    result_reshaped = torch.matmul(rot_mat2, trans_vec1_reshaped)
+
+    # Reshape the result back to the original shape of trans_vec1
+    r2t1 = result_reshaped.view(trans_vec1.shape)
     return r2r1, r2t1 + trans_vec2
 
 def euler_angles_to_matrix(euler_angles):
     batch_size = euler_angles.size(0)
-    cos_theta = torch.cos(euler_angles[:, 0])
+    cos_theta = torch.cos(euler_angles[:, 0]) 
     sin_theta = torch.sin(euler_angles[:, 0])
     cos_phi = torch.cos(euler_angles[:, 1])
     sin_phi = torch.sin(euler_angles[:, 1])
@@ -104,16 +113,17 @@ def euler_angles_to_matrix(euler_angles):
     sin_psi = torch.sin(euler_angles[:, 2])
 
     rotation_matrix = torch.zeros((batch_size, 3, 3), device=euler_angles.device)
-    rotation_matrix[:, 0, 0] = cos_theta * cos_psi
-    rotation_matrix[:, 0, 1] = -cos_phi * sin_psi + sin_phi * sin_theta * cos_psi
-    rotation_matrix[:, 0, 2] = sin_phi * sin_psi + cos_phi * sin_theta * cos_psi
-    rotation_matrix[:, 1, 0] = cos_theta * sin_psi
-    rotation_matrix[:, 1, 1] = cos_phi * cos_psi + sin_phi * sin_theta * sin_psi
-    rotation_matrix[:, 1, 2] = -sin_phi * cos_psi + cos_phi * sin_theta * sin_psi
-    rotation_matrix[:, 2, 0] = -sin_theta
-    rotation_matrix[:, 2, 1] = sin_phi * cos_theta
-    rotation_matrix[:, 2, 2] = cos_phi * cos_theta
 
+    rotation_matrix[:, 0, 0] = (cos_theta * cos_psi)[:,0,0]
+    rotation_matrix[:, 0, 1] = (-cos_phi * sin_psi + sin_phi * sin_theta * cos_psi)[:,0,0]
+    rotation_matrix[:, 0, 2] = (sin_phi * sin_psi + cos_phi * sin_theta * cos_psi)[:,0,0]
+    rotation_matrix[:, 1, 0] = (cos_theta * sin_psi)[:,0,0]
+    rotation_matrix[:, 1, 1] = (cos_phi * cos_psi + sin_phi * sin_theta * sin_psi)[:,0,0]
+    rotation_matrix[:, 1, 2] = (-sin_phi * cos_psi + cos_phi * sin_theta * sin_psi)[:,0,0]
+    rotation_matrix[:, 2, 0] = (-sin_theta)[:,0,0]
+    rotation_matrix[:, 2, 1] = (sin_phi * cos_theta)[:,0,0]
+    rotation_matrix[:, 2, 2] = (cos_phi * cos_theta)[:,0,0]
+    
     return rotation_matrix
 
 def matrix_to_euler_angles(rotation_matrix):

@@ -169,41 +169,44 @@ def motion_field_consistency_loss(frame1transformed_pixelx,
         frame1transformed_pixelx.detach(),
         frame1transformed_pixely.detach(),
         safe=False)
-    translation2resampled = translation2resampled.view(-1, 128, 416, 3)
-    rotation1field = _expand_dims_twice(rotation1, -2).expand(
-                    translation1.shape)
-    rotation2field = _expand_dims_twice(rotation2, -2).expand(
-                    translation2.shape)
-    rotation1matrix = transform_utils.matrix_from_angles(rotation1field)
-    rotation2matrix = transform_utils.matrix_from_angles(rotation2field)
-
+    
+    #translation1 = translation1.view()
+    
+    # rotation1field = _expand_dims_twice(rotation1, -2).expand(
+    #                 translation1.shape)
+    # rotation2field = _expand_dims_twice(rotation2, -2).expand(
+    #                 translation2.shape)
+    rotation1matrix = transform_utils.matrix_from_angles(rotation1)
+    rotation2matrix = transform_utils.matrix_from_angles(rotation2)
+    
+    #translation2resampled = translation2resampled.view(-1, 128, 416, 3)
     rot_unit, trans_zero = transform_utils.combine(rotation2matrix,
                                                     translation2resampled,
                                                     rotation1matrix, translation1)
+    
     eye = torch.eye(3).to(device=rot_unit.device) #batch_shape=rot_unit.shape[:-2]
     for i in range(len(rot_unit.shape[:-2])):
         eye = eye.unsqueeze(0)
     eye = eye.repeat(*rot_unit.shape[:-2], 1, 1)
-    
 
     # We normalize the product of rotations by the product of their norms, to make
     # the loss agnostic of their magnitudes, only wanting them to be opposite in
     # directions. Otherwise the loss has a tendency to drive the rotations to
     # zero.
-    rot_error = torch.mean(torch.square(rot_unit - eye), dim=(3, 4))
-    rot1_scale = torch.mean(torch.square(rotation1matrix - eye), dim=(3, 4))
-    rot2_scale = torch.mean(torch.square(rotation2matrix - eye), dim=(3, 4))
+    rot_error = torch.mean(torch.square(rot_unit - eye))
+    rot1_scale = torch.mean(torch.square(rotation1matrix - eye))
+    rot2_scale = torch.mean(torch.square(rotation2matrix - eye))
     rot_error = rot_error / (1e-24 + rot1_scale + rot2_scale)
     # Until here we have the rotation error. This should be multiplied by the alpha_cyc
     rotation_error = torch.mean(rot_error)
-
     def norm(x):
         return torch.sum(torch.square(x), dim=-1)
 
     # Here again, we normalize by the magnitudes, for the same reason.
-    translation_error = torch.mean(torch.mul(
-        mask, norm(trans_zero) /
-        (1e-24 + norm(translation1) + norm(translation2resampled))))
+
+    translation_error = torch.mean(norm(torch.mul(
+        mask.unsqueeze(1).repeat(1,3,1,1), (trans_zero))) /
+        (1e-24 + norm(translation1) + norm(translation2resampled)))
 
     return {
         'rotation_error': rotation_error,
@@ -233,6 +236,7 @@ def rgbd_and_motion_consistency_loss(frame1transformed_depth,
     mask = endpoints['frame1_closer_to_camera']
     if validity_mask is not None:
         mask = mask * torch.squeeze(validity_mask, dim=1)
+    
     endpoints.update(
         motion_field_consistency_loss(frame1transformed_depth.pixel_x,
                                     frame1transformed_depth.pixel_y, mask,
