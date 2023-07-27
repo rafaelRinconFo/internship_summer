@@ -15,6 +15,7 @@ from metrics import image_logger_unsupervised, log_metrics
 from scripts import create_run_directory
 from unsupervised.losses import l1smoothness, sqrt_sparsity, joint_bilateral_smoothing, using_motion_vector
 from unsupervised.losses.intrinsics_utils import invert_intrinsics_matrix
+from unsupervised.losses.consistency_losses import rgbd_and_motion_consistency_loss
 
 
 from tqdm import tqdm
@@ -48,6 +49,14 @@ class Trainer:
         self.depth_est_network.train()
         self.motion_est_network.train()
         train_losses = []
+        losses_result_dict = {
+            "L_reg_mot": [],
+            "L_reg_mot_inv": [], 
+            "L_reg_dep_1": [],
+            "L_reg_dep_2": [],
+            "L_cyc": [],
+            "L_rgb": [],
+        }
 
         for data in tqdm(dataloader, desc="Training"):
 
@@ -153,65 +162,214 @@ class Trainer:
             transformed_depth = using_motion_vector(
                 torch.squeeze(depth_pred_1, dim=1), total_translation, rotation,
                 intrinsic_mat,inverse_intrinsics_mat)
-            
+            loss_endpoints = self.loss_dict["rgbd_and_motion_consistency_loss"](
+                    transformed_depth,
+                    image_1,
+                    depth_pred_2,
+                    image_2,
+                    rotation,
+                    total_translation,
+                    rotation_inv,
+                    total_translation_inv,
+                    )
             print('L consistency regularization')
-            return
-            
-            # Compute loss
-            loss = self.loss(pred, depth_map)
+            print(loss_endpoints)
+            L_cyc = self.hyperparams["alpha_cyc"] * loss_endpoints['rotation_error'] + self.hyperparams["beta_cyc"] * loss_endpoints['translation_error'] 
+            print('L cyc regularization')
+            L_rgb = self.hyperparams["alpha_rgb"] * loss_endpoints['rgb_error'] + self.hyperparams["beta_rgb"] * loss_endpoints['ssim_error']
 
-            # Backward pass
-            # Uses the gradient object
-            loss.backward()
+            losses_result_dict["L_reg_mot"].append(L_reg_mot)
+            losses_result_dict["L_reg_mot_inv"].append(L_reg_mot_inv)
+            losses_result_dict["L_reg_dep_1"].append(L_reg_dep_1)
+            losses_result_dict["L_reg_dep_2"].append(L_reg_dep_2)
+            losses_result_dict["L_cyc"].append(L_cyc)
+            losses_result_dict["L_rgb"].append(L_rgb)
+
+            total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
+            print('Total loss')
+            print(total_loss)
+            # Compute loss
+            total_loss.backward()
+            # Update weights
             self.optimizer.step()  # Actually chages the values of the parameters using their gradients, computed on the previous line of code.
 
             # Print and store batch loss
             # batch_loss = loss.item()/depth_map.shape[0]
-            train_losses.append(loss)
+            train_losses.append(total_loss)
+
+        train_losses_dict = {
+            "L_reg_mot": sum(losses_result_dict["L_reg_mot"]) / len(losses_result_dict["L_reg_mot"]),
+            "L_reg_mot_inv": sum(losses_result_dict["L_reg_mot_inv"]) / len(losses_result_dict["L_reg_mot_inv"]),
+            "L_reg_dep_1": sum(losses_result_dict["L_reg_dep_1"]) / len(losses_result_dict["L_reg_dep_1"]),
+            "L_reg_dep_2": sum(losses_result_dict["L_reg_dep_2"]) / len(losses_result_dict["L_reg_dep_2"]),
+            "L_cyc": sum(losses_result_dict["L_cyc"]) / len(losses_result_dict["L_cyc"]),
+            "L_rgb": sum(losses_result_dict["L_rgb"]) / len(losses_result_dict["L_rgb"]),
+        }
 
         average_train_loss = sum(train_losses) / len(train_losses)
-        return average_train_loss
+
+        return average_train_loss, train_losses_dict
 
     def validation_epoch(self, dataloader):
         "Set evaluation mode for encoder and decoder"
         self.depth_est_network.eval()  # evaluation mode, equivalent to "network.train(False)""
         self.motion_est_network.eval()  # evaluation mode, equivalent to "network.train(False)""
         val_losses = []
+        losses_result_dict = {
+            "L_reg_mot": [],
+            "L_reg_mot_inv": [], 
+            "L_reg_dep_1": [],
+            "L_reg_dep_2": [],
+            "L_cyc": [],
+            "L_rgb": [],
+        }
         with torch.no_grad():  # No need to track the gradients
 
-            for data in tqdm(dataloader, desc="Validation"):
-                image, depth_map, _ = data
+            for data in tqdm(dataloader, desc="Training"):
+
+                if data is None:
+                    continue
+
+                image_1, image_2 = data
 
                 # Moving to GPU
-                image = image.to(self.device)
+                image_1 = image_1.to(self.device)
+                image_2 = image_2.to(self.device)
 
-                if depth_map.dtype != torch.float32:
-                    depth_map = depth_map.type(torch.float32)
+                # Sets the gradients attached to the parameters objects to zero.
+                self.optimizer.zero_grad()
+                # Predictions for the depth network
 
-                depth_map = depth_map.to(self.device)
+                depth_pred_1 = self.depth_est_network(image_1)
+                print(depth_pred_1.shape)
 
-                image = image.squeeze(1)
-                # Applying the necessary transforms
-                # (transform_midas does not keep the transformations in memory of the dataloader.)
-                # Best= apply it the the entire dataset in its definition
+                # pred_1 = torch.nn.functional.interpolate(
+                #     pred_1.unsqueeze(1),
+                #     size=image_1.shape[-2:],
+                #     mode="bicubic",
+                #     align_corners=False,
+                # ).squeeze()
 
-                # Going through the network
-                pred = self.model(image)
+                # if len(pred_1.shape) == 2:
+                #     pred_1 = pred_1.unsqueeze(0)
+                print("Starting second inference")
+                depth_pred_2 = self.depth_est_network(image_2)
+                print(depth_pred_2.shape)
 
-                pred = torch.nn.functional.interpolate(
-                    pred.unsqueeze(1),
-                    size=depth_map.shape[-2:],
-                    mode="bicubic",
-                    align_corners=False,
-                ).squeeze()
-                # Computing the loss, storing it
-                # d_test=T.functional.resize(d, (128, 256))
+                # pred_2 = torch.nn.functional.interpolate(
+                #     pred_1.unsqueeze(1),
+                #     size=image_1.shape[-2:],
+                #     mode="bicubic",
+                #     align_corners=False,
+                # ).squeeze()
 
-                if len(pred.shape) == 2:
-                    pred = pred.unsqueeze(0)
+                if len(depth_pred_2.shape) == 2:
+                    depth_pred_2 = depth_pred_2.unsqueeze(0)
 
-                loss = self.loss(pred, depth_map)
-                val_losses.append(loss)
+                # Inputs for the motion network
+                motion_input = torch.cat([image_1, depth_pred_1, image_2, depth_pred_2], dim=1)
+                motion_input_inv = torch.cat([image_2, depth_pred_2, image_1, depth_pred_1], dim=1)
+
+                # Predictions for the motion network
+                print("Starting motion inference")
+                rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
+                    motion_input
+                )
+                total_translation = torch.add(residual_translation,background_translation)
+                print(rotation.shape)
+                print(background_translation.shape)
+                print(residual_translation.shape)
+                print(intrinsic_mat.shape)
+                print("Starting motion inference inverse")
+                rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
+                    motion_input_inv
+                )
+                total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
+                print(rotation_inv.shape)
+                print(background_translation_inv.shape)
+                print(residual_translation_inv.shape)
+                print(intrinsic_mat_inv.shape)
+
+                L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
+                    "l1smoothness"
+                ](total_translation) + self.hyperparams["beta_motion"] * self.loss_dict[
+                    "sqrt_sparsity"
+                ](
+                    total_translation
+                )
+                print('L motion regularization')
+                print(L_reg_mot)
+                L_reg_mot_inv = self.hyperparams["alpha_motion"] * self.loss_dict[
+                    "l1smoothness"
+                ](total_translation_inv) + self.hyperparams[
+                    "beta_motion"
+                ] * self.loss_dict[
+                    "sqrt_sparsity"
+                ](
+                    total_translation_inv
+                )
+                print('L motion regularization inverse')
+                print(L_reg_mot_inv)
+                L_reg_dep_1 = self.hyperparams["alpha_depth"] * self.loss_dict[
+                    "joint_bilateral_smoothing"
+                ](depth_pred_1, image_1)
+                print('L depth regularization 1')
+                print(L_reg_dep_1)
+                L_reg_dep_2 = self.hyperparams["alpha_depth"] * self.loss_dict[
+                    "joint_bilateral_smoothing"
+                ](depth_pred_2, image_2)
+                print('L depth regularization 2')
+                print(L_reg_dep_2)
+                print('Transforming the depth map')
+                print(f'This is the total translation shape {total_translation.shape}')
+                print('Inverting the intrinsics matrix')
+                inverse_intrinsics_mat = invert_intrinsics_matrix(intrinsic_mat)
+
+                print(f'Shape of the inverse intrinsics matrix {inverse_intrinsics_mat.shape}')
+                transformed_depth = using_motion_vector(
+                    torch.squeeze(depth_pred_1, dim=1), total_translation, rotation,
+                    intrinsic_mat,inverse_intrinsics_mat)
+                loss_endpoints = self.loss_dict["rgbd_and_motion_consistency_loss"](
+                        transformed_depth,
+                        image_1,
+                        depth_pred_2,
+                        image_2,
+                        rotation,
+                        total_translation,
+                        rotation_inv,
+                        total_translation_inv,
+                        )
+                print('L consistency regularization')
+                print(loss_endpoints)
+                L_cyc = self.hyperparams["alpha_cyc"] * loss_endpoints['rotation_error'] + self.hyperparams["beta_cyc"] * loss_endpoints['translation_error'] 
+                print('L cyc regularization')
+                L_rgb = self.hyperparams["alpha_rgb"] * loss_endpoints['rgb_error'] + self.hyperparams["beta_rgb"] * loss_endpoints['ssim_error']
+
+                losses_result_dict["L_reg_mot"].append(L_reg_mot)
+                losses_result_dict["L_reg_mot_inv"].append(L_reg_mot_inv)
+                losses_result_dict["L_reg_dep_1"].append(L_reg_dep_1)
+                losses_result_dict["L_reg_dep_2"].append(L_reg_dep_2)
+                losses_result_dict["L_cyc"].append(L_cyc)
+                losses_result_dict["L_rgb"].append(L_rgb)
+
+                total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
+                print('Total loss')
+                print(total_loss)
+
+                # Print and store batch loss
+                # batch_loss = loss.item()/depth_map.shape[0]
+                val_losses.append(total_loss)
+
+            train_losses_dict = {
+                "val_L_reg_mot": sum(losses_result_dict["L_reg_mot"]) / len(losses_result_dict["L_reg_mot"]),
+                "val_L_reg_mot_inv": sum(losses_result_dict["L_reg_mot_inv"]) / len(losses_result_dict["L_reg_mot_inv"]),
+                "val_L_reg_dep_1": sum(losses_result_dict["L_reg_dep_1"]) / len(losses_result_dict["L_reg_dep_1"]),
+                "val_L_reg_dep_2": sum(losses_result_dict["L_reg_dep_2"]) / len(losses_result_dict["L_reg_dep_2"]),
+                "val_L_cyc": sum(losses_result_dict["L_cyc"]) / len(losses_result_dict["L_cyc"]),
+                "val_L_rgb": sum(losses_result_dict["L_rgb"]) / len(losses_result_dict["L_rgb"]),
+            }
+
+            average_val_loss = sum(val_losses) / len(val_losses)
 
         average_val_loss = sum(val_losses) / len(val_losses)
         return average_val_loss
@@ -245,7 +403,9 @@ def main():
         "beta_motion": params["beta_motion"],
         "alpha_depth": params["alpha_depth"],
         "alpha_cyc": params["alpha_cyc"],
-        "beta_cyc": params["beta_cyc"],
+        "beta_cyc": params["beta_cyc"],  
+        "alpha_rgb": params["alpha_rgb"],
+        "beta_rgb": params["beta_rgb"],      
     }
 
     torch.manual_seed(seed)
@@ -254,6 +414,7 @@ def main():
         "l1smoothness": l1smoothness,
         "sqrt_sparsity": sqrt_sparsity,
         "joint_bilateral_smoothing": joint_bilateral_smoothing,
+        "rgbd_and_motion_consistency_loss": rgbd_and_motion_consistency_loss,
     }
     # TODO Change this, the loss here will work differently than in supervised
     # loss_function = loss_dict[params["loss"]]
@@ -283,6 +444,11 @@ def main():
                 "pretrained": pretrained,
                 "alpha_motion": hyperparams["alpha_motion"],
                 "beta_motion": hyperparams["beta_motion"],
+                "alpha_depth": hyperparams["alpha_depth"],
+                "alpha_cyc": hyperparams["alpha_cyc"],
+                "beta_cyc": hyperparams["beta_cyc"],    
+                "alpha_rgb": hyperparams["alpha_rgb"],
+                "beta_rgb": hyperparams["beta_rgb"], 
             },
         )
     else:
@@ -340,10 +506,13 @@ def main():
     print(f"Training process for the {depth_model} model")
     for epoch in range(epochs):
         print(f"Epoch {epoch}")
-        train_losses = trainer.train_epoch(train_loader)
+        train_losses, average_losses = trainer.train_epoch(train_loader)
         print(f"Average train loss: {train_losses}")
-        #val_losses = trainer.validation_epoch(val_loader)
-        #print(f"Average validation loss: {val_losses}")
+        print(f"Individual losses: {average_losses}")
+
+        val_losses, val_average_losses = trainer.validation_epoch(val_loader)
+        print(f"Average validation loss: {val_losses}")
+        print(f"Individual validation losses: {val_average_losses}")
         if epoch % 10 == 0:
             print("Saving model")
             try:
@@ -377,7 +546,9 @@ def main():
             #         worst_sample_number=worst_sample_number,
             #     )
             wandb.log({"loss": train_losses}, commit=False)
-            #wandb.log({"val_loss": val_losses})
+            wandb.log(average_losses, commit=False)
+            wandb.log({"val_loss": val_losses}, commit=False)
+            wandb.log(val_average_losses)
 
 
 if __name__ == "__main__":
