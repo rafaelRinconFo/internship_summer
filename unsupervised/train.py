@@ -74,7 +74,7 @@ class Trainer:
             # Predictions for the depth network
 
             depth_pred_1 = self.depth_est_network(image_1)
-            print(depth_pred_1.shape)
+
 
             # pred_1 = torch.nn.functional.interpolate(
             #     pred_1.unsqueeze(1),
@@ -85,9 +85,8 @@ class Trainer:
 
             # if len(pred_1.shape) == 2:
             #     pred_1 = pred_1.unsqueeze(0)
-            print("Starting second inference")
             depth_pred_2 = self.depth_est_network(image_2)
-            print(depth_pred_2.shape)
+
 
             # pred_2 = torch.nn.functional.interpolate(
             #     pred_1.unsqueeze(1),
@@ -104,24 +103,19 @@ class Trainer:
             motion_input_inv = torch.cat([image_2, depth_pred_2, image_1, depth_pred_1], dim=1)
 
             # Predictions for the motion network
-            print("Starting motion inference")
+
             rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
                 motion_input
             )
             total_translation = torch.add(residual_translation,background_translation)
-            print(rotation.shape)
-            print(background_translation.shape)
-            print(residual_translation.shape)
-            print(intrinsic_mat.shape)
-            print("Starting motion inference inverse")
+
             rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
                 motion_input_inv
             )
             total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
-            print(rotation_inv.shape)
-            print(background_translation_inv.shape)
-            print(residual_translation_inv.shape)
-            print(intrinsic_mat_inv.shape)
+
+            disp1 = 1/depth_pred_1
+            disp2 = 1/depth_pred_2
 
             L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
                 "l1smoothness"
@@ -130,8 +124,6 @@ class Trainer:
             ](
                 total_translation
             )
-            print('L motion regularization')
-            print(L_reg_mot)
             L_reg_mot_inv = self.hyperparams["alpha_motion"] * self.loss_dict[
                 "l1smoothness"
             ](total_translation_inv) + self.hyperparams[
@@ -141,24 +133,15 @@ class Trainer:
             ](
                 total_translation_inv
             )
-            print('L motion regularization inverse')
-            print(L_reg_mot_inv)
             L_reg_dep_1 = self.hyperparams["alpha_depth"] * self.loss_dict[
                 "joint_bilateral_smoothing"
-            ](depth_pred_1, image_1)
-            print('L depth regularization 1')
-            print(L_reg_dep_1)
+            ](disp1, image_1)
             L_reg_dep_2 = self.hyperparams["alpha_depth"] * self.loss_dict[
                 "joint_bilateral_smoothing"
-            ](depth_pred_2, image_2)
-            print('L depth regularization 2')
-            print(L_reg_dep_2)
-            print('Transforming the depth map')
-            print(f'This is the total translation shape {total_translation.shape}')
-            print('Inverting the intrinsics matrix')
+            ](disp2, image_2)
+
             inverse_intrinsics_mat = invert_intrinsics_matrix(intrinsic_mat)
 
-            print(f'Shape of the inverse intrinsics matrix {inverse_intrinsics_mat.shape}')
             transformed_depth = using_motion_vector(
                 torch.squeeze(depth_pred_1, dim=1), total_translation, rotation,
                 intrinsic_mat,inverse_intrinsics_mat)
@@ -172,10 +155,8 @@ class Trainer:
                     rotation_inv,
                     total_translation_inv,
                     )
-            print('L consistency regularization')
-            print(loss_endpoints)
             L_cyc = self.hyperparams["alpha_cyc"] * loss_endpoints['rotation_error'] + self.hyperparams["beta_cyc"] * loss_endpoints['translation_error'] 
-            print('L cyc regularization')
+
             L_rgb = self.hyperparams["alpha_rgb"] * loss_endpoints['rgb_error'] + self.hyperparams["beta_rgb"] * loss_endpoints['ssim_error']
 
             losses_result_dict["L_reg_mot"].append(L_reg_mot)
@@ -185,9 +166,8 @@ class Trainer:
             losses_result_dict["L_cyc"].append(L_cyc)
             losses_result_dict["L_rgb"].append(L_rgb)
 
-            total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
-            print('Total loss')
-            print(total_loss)
+            total_loss = L_reg_mot #+ L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
+
             # Compute loss
             total_loss.backward()
             # Update weights
@@ -241,7 +221,6 @@ class Trainer:
                 # Predictions for the depth network
 
                 depth_pred_1 = self.depth_est_network(image_1)
-                print(depth_pred_1.shape)
 
                 # pred_1 = torch.nn.functional.interpolate(
                 #     pred_1.unsqueeze(1),
@@ -252,9 +231,9 @@ class Trainer:
 
                 # if len(pred_1.shape) == 2:
                 #     pred_1 = pred_1.unsqueeze(0)
-                print("Starting second inference")
+
                 depth_pred_2 = self.depth_est_network(image_2)
-                print(depth_pred_2.shape)
+
 
                 # pred_2 = torch.nn.functional.interpolate(
                 #     pred_1.unsqueeze(1),
@@ -271,24 +250,16 @@ class Trainer:
                 motion_input_inv = torch.cat([image_2, depth_pred_2, image_1, depth_pred_1], dim=1)
 
                 # Predictions for the motion network
-                print("Starting motion inference")
                 rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
                     motion_input
                 )
                 total_translation = torch.add(residual_translation,background_translation)
-                print(rotation.shape)
-                print(background_translation.shape)
-                print(residual_translation.shape)
-                print(intrinsic_mat.shape)
-                print("Starting motion inference inverse")
+
                 rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
                     motion_input_inv
                 )
                 total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
-                print(rotation_inv.shape)
-                print(background_translation_inv.shape)
-                print(residual_translation_inv.shape)
-                print(intrinsic_mat_inv.shape)
+
 
                 L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
                     "l1smoothness"
@@ -297,8 +268,7 @@ class Trainer:
                 ](
                     total_translation
                 )
-                print('L motion regularization')
-                print(L_reg_mot)
+
                 L_reg_mot_inv = self.hyperparams["alpha_motion"] * self.loss_dict[
                     "l1smoothness"
                 ](total_translation_inv) + self.hyperparams[
@@ -308,24 +278,18 @@ class Trainer:
                 ](
                     total_translation_inv
                 )
-                print('L motion regularization inverse')
-                print(L_reg_mot_inv)
+
                 L_reg_dep_1 = self.hyperparams["alpha_depth"] * self.loss_dict[
                     "joint_bilateral_smoothing"
                 ](depth_pred_1, image_1)
-                print('L depth regularization 1')
-                print(L_reg_dep_1)
+
                 L_reg_dep_2 = self.hyperparams["alpha_depth"] * self.loss_dict[
                     "joint_bilateral_smoothing"
                 ](depth_pred_2, image_2)
-                print('L depth regularization 2')
-                print(L_reg_dep_2)
-                print('Transforming the depth map')
-                print(f'This is the total translation shape {total_translation.shape}')
-                print('Inverting the intrinsics matrix')
+
                 inverse_intrinsics_mat = invert_intrinsics_matrix(intrinsic_mat)
 
-                print(f'Shape of the inverse intrinsics matrix {inverse_intrinsics_mat.shape}')
+
                 transformed_depth = using_motion_vector(
                     torch.squeeze(depth_pred_1, dim=1), total_translation, rotation,
                     intrinsic_mat,inverse_intrinsics_mat)
@@ -339,10 +303,9 @@ class Trainer:
                         rotation_inv,
                         total_translation_inv,
                         )
-                print('L consistency regularization')
-                print(loss_endpoints)
+
                 L_cyc = self.hyperparams["alpha_cyc"] * loss_endpoints['rotation_error'] + self.hyperparams["beta_cyc"] * loss_endpoints['translation_error'] 
-                print('L cyc regularization')
+
                 L_rgb = self.hyperparams["alpha_rgb"] * loss_endpoints['rgb_error'] + self.hyperparams["beta_rgb"] * loss_endpoints['ssim_error']
 
                 losses_result_dict["L_reg_mot"].append(L_reg_mot)
@@ -353,8 +316,7 @@ class Trainer:
                 losses_result_dict["L_rgb"].append(L_rgb)
 
                 total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
-                print('Total loss')
-                print(total_loss)
+
 
                 # Print and store batch loss
                 # batch_loss = loss.item()/depth_map.shape[0]
@@ -492,7 +454,7 @@ def main():
         shuffle=True,
         num_workers=4,
     )
-
+    torch.autograd.set_detect_anomaly(True)
     trainer = Trainer(
         depth_est_network,
         motion_est_network,
