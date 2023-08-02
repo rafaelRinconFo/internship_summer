@@ -84,14 +84,32 @@ class UnsupervisedDataset(torch.utils.data.Dataset):
         path_final, year_fin = self.list_images_paths[index+1]
         image_init= cv2.imread(path_init)
         image_final=cv2.imread(path_final)
+        # Reads the camera parameters from the .txt file
+        with open(os.path.join("datasets/", str(year_init), "sfm", "cameras.txt")) as f:
+            lines = f.readlines()
+            for line in lines:
+                if not line.startswith(str(1)):
+                    continue
+                line = line.split(" ")[4:]
+                # Reads the 5 camera parameters from the line
+                line = [float(x) for x in line]
+                fm = line[0]
+                cx = line[1]
+                cy = line[2]
+                k1 = line[3]
+                k2 = line[4]
+        f.close()
+        # Creates a tensor the camera matrix
+        camera_matrix = torch.tensor([[fm, 0, cx], [0, fm, cy], [0, 0, 1]])
+
         if year_init != year_fin:
             return None
 
  
         if self.transform:
-            return self.transform(image_init), self.transform(image_final)
+            return self.transform(image_init), self.transform(image_final), camera_matrix
 
-        return image_init, image_final
+        return image_init, image_final, camera_matrix
 
     def __len__(self):
         return len(self.list_images_paths)

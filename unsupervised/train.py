@@ -63,11 +63,13 @@ class Trainer:
             if data is None:
                 continue
 
-            image_1, image_2 = data
+            image_1, image_2, intrinsic_mat = data
 
+            print('intrinsic_mat', intrinsic_mat.shape, type(intrinsic_mat))
             # Moving to GPU
             image_1 = image_1.to(self.device)
             image_2 = image_2.to(self.device)
+            intrinsic_mat = intrinsic_mat.to(self.device)
 
             # Sets the gradients attached to the parameters objects to zero.
             self.optimizer.zero_grad()
@@ -104,12 +106,12 @@ class Trainer:
 
             # Predictions for the motion network
 
-            rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
+            rotation, background_translation, residual_translation = self.motion_est_network(
                 motion_input
             )
             total_translation = torch.add(residual_translation,background_translation)
 
-            rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
+            rotation_inv, background_translation_inv, residual_translation_inv = self.motion_est_network(
                 motion_input_inv
             )
             total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
@@ -210,11 +212,12 @@ class Trainer:
                 if data is None:
                     continue
 
-                image_1, image_2 = data
+                image_1, image_2, intrinsic_mat = data
 
                 # Moving to GPU
                 image_1 = image_1.to(self.device)
                 image_2 = image_2.to(self.device)
+                intrinsic_mat = intrinsic_mat.to(self.device)
 
                 # Sets the gradients attached to the parameters objects to zero.
                 self.optimizer.zero_grad()
@@ -250,12 +253,12 @@ class Trainer:
                 motion_input_inv = torch.cat([image_2, depth_pred_2, image_1, depth_pred_1], dim=1)
 
                 # Predictions for the motion network
-                rotation, background_translation, residual_translation, intrinsic_mat = self.motion_est_network(
+                rotation, background_translation, residual_translation = self.motion_est_network(
                     motion_input
                 )
                 total_translation = torch.add(residual_translation,background_translation)
 
-                rotation_inv, background_translation_inv, residual_translation_inv, intrinsic_mat_inv = self.motion_est_network(
+                rotation_inv, background_translation_inv, residual_translation_inv = self.motion_est_network(
                     motion_input_inv
                 )
                 total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
