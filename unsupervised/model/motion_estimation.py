@@ -60,9 +60,9 @@ class MotionFieldNet(nn.Module):
 
         background_motion = self.background_motion(bottleneck)
         # TODO Check if the slicing is correct
-        rotation = background_motion[:, :3, :, :]
+        rotation = background_motion[:, :3, :, :].clone()
         # TODO Check if the slicing is correct
-        background_translation = background_motion[:, 3:, :, :]
+        background_translation = background_motion[:, 3:, :, :].clone()
 
         residual_translation = self.unrefined_residual_translation(background_motion)
      
