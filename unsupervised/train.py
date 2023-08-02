@@ -60,10 +60,12 @@ class Trainer:
 
         for data in tqdm(dataloader, desc="Training"):
 
-            if data is None:
-                continue
+
 
             image_1, image_2, intrinsic_mat = data
+
+            # if intrinsic_mat == torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]]):
+            #     continue
 
             # Moving to GPU
             image_1 = image_1.to(self.device)
@@ -160,14 +162,14 @@ class Trainer:
 
             L_rgb = self.hyperparams["alpha_rgb"] * loss_endpoints['rgb_error'] + self.hyperparams["beta_rgb"] * loss_endpoints['ssim_error']
 
-            losses_result_dict["L_reg_mot"].append(L_reg_mot)
-            losses_result_dict["L_reg_mot_inv"].append(L_reg_mot_inv)
-            losses_result_dict["L_reg_dep_1"].append(L_reg_dep_1)
-            losses_result_dict["L_reg_dep_2"].append(L_reg_dep_2)
-            losses_result_dict["L_cyc"].append(L_cyc)
-            losses_result_dict["L_rgb"].append(L_rgb)
+            losses_result_dict["L_reg_mot"].append(L_reg_mot.cpu().data.numpy())
+            losses_result_dict["L_reg_mot_inv"].append(L_reg_mot_inv.cpu().data.numpy())
+            losses_result_dict["L_reg_dep_1"].append(L_reg_dep_1.cpu().data.numpy())
+            losses_result_dict["L_reg_dep_2"].append(L_reg_dep_2.cpu().data.numpy())
+            losses_result_dict["L_cyc"].append(L_cyc.cpu().data.numpy())
+            losses_result_dict["L_rgb"].append(L_rgb.cpu().data.numpy())
 
-            total_loss = L_reg_mot #+ L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
+            total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
 
             # Compute loss
             total_loss.backward()
@@ -176,7 +178,8 @@ class Trainer:
 
             # Print and store batch loss
             # batch_loss = loss.item()/depth_map.shape[0]
-            train_losses.append(total_loss)
+            train_losses.append(total_loss.cpu().data.numpy())
+            print(f'Current memory use: {torch.cuda.max_memory_allocated()}')
 
         train_losses_dict = {
             "L_reg_mot": sum(losses_result_dict["L_reg_mot"]) / len(losses_result_dict["L_reg_mot"]),
@@ -206,13 +209,13 @@ class Trainer:
         }
         with torch.no_grad():  # No need to track the gradients
 
-            for data in tqdm(dataloader, desc="Training"):
+            for data in tqdm(dataloader, desc="Validation step"):
 
-                if data is None:
-                    continue
+
 
                 image_1, image_2, intrinsic_mat = data
-
+                # if intrinsic_mat == torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]]):
+                #     continue
                 # Moving to GPU
                 image_1 = image_1.to(self.device)
                 image_2 = image_2.to(self.device)
@@ -310,19 +313,19 @@ class Trainer:
 
                 L_rgb = self.hyperparams["alpha_rgb"] * loss_endpoints['rgb_error'] + self.hyperparams["beta_rgb"] * loss_endpoints['ssim_error']
 
-                losses_result_dict["L_reg_mot"].append(L_reg_mot)
-                losses_result_dict["L_reg_mot_inv"].append(L_reg_mot_inv)
-                losses_result_dict["L_reg_dep_1"].append(L_reg_dep_1)
-                losses_result_dict["L_reg_dep_2"].append(L_reg_dep_2)
-                losses_result_dict["L_cyc"].append(L_cyc)
-                losses_result_dict["L_rgb"].append(L_rgb)
+                losses_result_dict["L_reg_mot"].append(L_reg_mot.cpu().data.numpy())
+                losses_result_dict["L_reg_mot_inv"].append(L_reg_mot_inv.cpu().data.numpy())
+                losses_result_dict["L_reg_dep_1"].append(L_reg_dep_1.cpu().data.numpy())
+                losses_result_dict["L_reg_dep_2"].append(L_reg_dep_2.cpu().data.numpy())
+                losses_result_dict["L_cyc"].append(L_cyc.cpu().data.numpy())
+                losses_result_dict["L_rgb"].append(L_rgb.cpu().data.numpy())
 
-                total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 + L_cyc + L_rgb
+                total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 # + L_cyc + L_rgb
 
 
                 # Print and store batch loss
                 # batch_loss = loss.item()/depth_map.shape[0]
-                val_losses.append(total_loss)
+                val_losses.append(total_loss.cpu().data.numpy())
 
             train_losses_dict = {
                 "val_L_reg_mot": sum(losses_result_dict["L_reg_mot"]) / len(losses_result_dict["L_reg_mot"]),
@@ -336,7 +339,7 @@ class Trainer:
             average_val_loss = sum(val_losses) / len(val_losses)
 
         average_val_loss = sum(val_losses) / len(val_losses)
-        return average_val_loss
+        return train_losses_dict, average_val_loss
 
 
 def main():
@@ -425,7 +428,7 @@ def main():
     )
     optim = torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
 
-    transforms = T.Compose([T.ToTensor(), T.Resize((512, 1024), antialias=True)])
+    transforms = T.Compose([T.ToTensor(), T.Resize((384, 768), antialias=True)])
 
     if toy:
         print(
