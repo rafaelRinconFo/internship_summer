@@ -65,7 +65,6 @@ class Trainer:
 
             image_1, image_2, intrinsic_mat = data
 
-            print('intrinsic_mat', intrinsic_mat.shape, type(intrinsic_mat))
             # Moving to GPU
             image_1 = image_1.to(self.device)
             image_2 = image_2.to(self.device)
