@@ -90,13 +90,7 @@ class MotionFieldNet(nn.Module):
                 residual_translation.dtype.base_dtype)
             residual_translation *= mask_residual_translation
 
-        image_height, image_width = x.size(2), x.size(3)
-        if self.intrinsic_mat is None:
-            intrinsic_mat = add_intrinsics_head(bottleneck, image_height, image_width,x.device)
-        else:
-            intrinsic_mat = self.intrinsic_mat.to(x.device)
-
-        return rotation, background_translation, residual_translation, intrinsic_mat
+        return rotation, background_translation, residual_translation
 
 
 
