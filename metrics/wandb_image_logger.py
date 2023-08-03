@@ -20,8 +20,12 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
             image = image.squeeze(1)
             depth_map = depth_map.to(device)
             pred = model(image)
+
+            if len(pred.shape) < 4:
+                pred = pred.unsqueeze(1)
+            
             pred = torch.nn.functional.interpolate(
-                pred.unsqueeze(1),
+                pred,
                 size=depth_map.shape[-2:],
                 mode="bicubic",
                 align_corners=False,
@@ -75,8 +79,11 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             image_1, image_2 = image_1.squeeze(1), image_2.squeeze(1)
             
             pred_1 = depth_est_network(image_1)
+            if len(pred_1.shape) < 4:
+                pred_1 = pred_1.unsqueeze(1)
+
             pred_1 = torch.nn.functional.interpolate(
-                pred_1.unsqueeze(1),
+                pred_1,
                 size=image_1.shape[-2:],
                 mode="bicubic",
                 align_corners=False,
@@ -86,8 +93,11 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             if len(pred_1.shape) == 2:
                 pred_1 = pred_1.unsqueeze(0)
             pred_2 = depth_est_network(image_1)
+
+            if len(pred_2.shape) < 4:
+                pred_2 = pred_2.unsqueeze(1)
             pred_2 = torch.nn.functional.interpolate(
-                pred_1.unsqueeze(1),
+                pred_1,
                 size=image_2.shape[-2:],
                 mode="bicubic",
                 align_corners=False,
@@ -96,7 +106,7 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
                 pred_2 = pred_2.unsqueeze(0)
 
             motion_input = torch.cat([image_1, pred_1, image_2, pred_2], dim=1)
-            _,_,motion_pred,_ = motion_est_network(motion_input)           
+            _,_,motion_pred = motion_est_network(motion_input)           
 
 
             image_logger.append(

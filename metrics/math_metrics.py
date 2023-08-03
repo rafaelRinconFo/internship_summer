@@ -72,8 +72,10 @@ def log_metrics(
 
             depth_map = depth_map.to(device)
             pred = model(image)
+            if len(pred.shape) < 4:
+                pred = pred.unsqueeze(1)
             pred = torch.nn.functional.interpolate(
-                pred.unsqueeze(1),
+                pred,
                 size=depth_map.shape[-2:],
                 mode="bicubic",
                 align_corners=False,
