@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import cv2
 
-from scripts import depth_map_color_scale
+from scripts import depth_map_color_scale, error_color_scale
 
 
 def image_logger(model, dataloader, wandb, device, n_images=5):
@@ -11,6 +11,9 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
     image_logger = []
     depth_logger = []
     prediction_logger = []
+    error_logger = []
+    histogram_pred_logger = []
+    histogram_gt_logger = []
     with torch.no_grad():
         for i, data in enumerate(dataloader):
             if i > n_images:
@@ -37,6 +40,12 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
             if len(pred.shape) == 2:
                 pred = pred.unsqueeze(0)
 
+            error_plot = torch.abs(pred - depth_map)
+
+            # flattens the prediction and the ground truth
+            pred_flat = pred[0].flatten().detach().cpu().numpy()
+            depth_map_flat = depth_map[0].flatten().detach().cpu().numpy()
+
             image_logger.append(
                 wandb.Image(
                     original_image, caption=f"Input image for {names[0].split('/')[-1]}"
@@ -54,11 +63,32 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
                     caption=f"Predicted depth for {names[0].split('/')[-1]}",
                 )
             )
+            error_logger.append(
+                wandb.Image(
+                    error_color_scale(error_plot[0].cpu().numpy()),
+                    caption=f"Error map for {names[0].split('/')[-1]}",
+                )
+            )
+            # logs histogram of the prediction and the ground truth
+        wandb.log({"Ground truth histogram": wandb.Histogram(depth_map_flat)}, commit=False)
+        wandb.log({"Prediction histogram": wandb.Histogram(pred_flat)}, commit=False)
+
+            # wandb.log(
+            #     {"Histogram prediction":wandb.Histogram(pred_flat),#, title=f"Prediction histogram for {names[0].split('/')[-1]}")
+            #     "Histogram ground truth":wandb.Histogram(depth_map_flat)},#, title=f"Ground truth histogram for {names[0].split('/')[-1]}")
+            #     commit=False,
+            # )
+            
+            
+
+
+
         wandb.log(
             {
                 "Image": image_logger,
                 "Prediction": prediction_logger,
                 "Depth_map": depth_logger,
+                "Error": error_logger,
             },
             commit=False,
         )
