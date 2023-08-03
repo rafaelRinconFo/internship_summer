@@ -8,7 +8,7 @@ import wandb
 import yaml
 import datetime
 
-from supervised import get_midas_env, SSIM, ScaleInvariantLoss
+from supervised import get_midas_env, SSIM, ScaleInvariantLoss, get_disp_net
 from metrics import image_logger, log_metrics
 from scripts import create_run_directory
 
@@ -21,7 +21,7 @@ class Trainer:
     ) -> None:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # Moves the model to the GPU if available
+        # Moves the model to the GPU if available     
         self.model = model.to(self.device)
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
@@ -49,9 +49,11 @@ class Trainer:
             # Going through the network
 
             pred = self.model(image)
+            if len(pred.shape) < 4:
+                pred = pred.unsqueeze(1)
 
             pred = torch.nn.functional.interpolate(
-                pred.unsqueeze(1),
+                pred,
                 size=depth_map.shape[-2:],
                 mode="bicubic",
                 align_corners=False,
@@ -70,7 +72,7 @@ class Trainer:
 
             # Print and store batch loss
             # batch_loss = loss.item()/depth_map.shape[0]
-            train_losses.append(loss)
+            train_losses.append(loss.detach().cpu())
 
         average_train_loss = sum(train_losses) / len(train_losses)
         return average_train_loss
@@ -99,13 +101,16 @@ class Trainer:
 
                 # Going through the network
                 pred = self.model(image)
-
+                if len(pred.shape) < 4:
+                    pred = pred.unsqueeze(1)
+                
                 pred = torch.nn.functional.interpolate(
-                    pred.unsqueeze(1),
+                    pred,
                     size=depth_map.shape[-2:],
                     mode="bicubic",
                     align_corners=False,
                 ).squeeze()
+
                 # Computing the loss, storing it
                 # d_test=T.functional.resize(d, (128, 256))
 
@@ -113,7 +118,7 @@ class Trainer:
                     pred = pred.unsqueeze(0)
 
                 loss = self.loss(pred, depth_map)
-                val_losses.append(loss)
+                val_losses.append(loss.detach().cpu())
 
         average_val_loss = sum(val_losses) / len(val_losses)
         return average_val_loss
@@ -185,7 +190,10 @@ def main():
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
 
-    model, transforms = get_midas_env(model_type, pretrained=pretrained)
+    if "DPT" in model_type or "MiDaS" in model_type:   
+        model, transforms = get_midas_env(model_type, pretrained=pretrained)
+    elif "DispNet" == model_type:
+        model, transforms = get_disp_net(model_type, pretrained=pretrained)
 
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 

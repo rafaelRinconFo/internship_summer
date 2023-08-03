@@ -1,4 +1,7 @@
 import torch
+from torchvision import transforms as T
+
+from unsupervised.model import DispNet
 
 
 def get_midas_env(model_name: str, pretrained: bool = True):
@@ -20,3 +23,19 @@ def get_midas_env(model_name: str, pretrained: bool = True):
         transform = midas_transforms.small_transform
 
     return midas, transform
+
+def get_disp_net(model_name: str, pretrained: bool = False, weights_path: str = None):
+    """
+    Returns the model and the necessary transforms for the DispNet model
+    that will be used in the unsupervised depth estimation
+    """
+
+    model = DispNet()
+    if pretrained and weights_path is not None:
+        model.load_state_dict(torch.load("models/depth_estimation/unsupervised/DispNet.ckpt"))
+    elif pretrained and weights_path is None:
+        raise Exception("weights_path must be specified if pretrained is True")
+    
+    transforms = T.Compose([T.ToTensor(), T.Resize((384, 768), antialias=True)])
+
+    return model, transforms
