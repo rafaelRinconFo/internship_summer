@@ -5,17 +5,18 @@ batch_size: 4
 epochs: 1
 lr: 0.0001
 weight_decay: 0.000001
-alpha_motion: 0.05
-beta_motion: 0.05
-alpha_depth: 0.05
-alpha_cyc: 0.05
-beta_cyc: 0.05
-alpha_rgb: 0.05
-beta_rgb: 0.05
+alpha_motion: 1
+beta_motion: 1
+alpha_depth: 1
+alpha_cyc: 1
+beta_cyc: 1
+alpha_rgb: 1
+beta_rgb: 1
 loss: Huber # It can be L1, MSE, Huber, SIL, SSIM is still WIP
 log_metrics_every: 5 # Log metrics every n epochs
 desired_metrics: ["accuracy_threshold", "RMSE", "RMSLE"]
 worst_metric_criteria: accuracy_threshold # It can be RMSE, RMSLE, accuracy_threshold 
 worst_sample_number: 5 # Number of worst samples to save
-pretrained: True # If True, it will use the weights from the pretrained model
+pretrained_disp: True # If True, it will use the weights from the pretrained model
+pretrained_disp_model: pretrained_model.pth # Path to the pretrained model
 seed: 42 # Seed for reproducibility

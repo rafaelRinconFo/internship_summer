@@ -361,9 +361,10 @@ def main():
     weight_decay = params["weight_decay"]
     log_metrics_every = params["log_metrics_every"]
     desired_metrics = params["desired_metrics"]
-    pretrained = params["pretrained"]
+    pretrained_disp = params["pretrained_disp"]
     worst_metric_criteria = params["worst_metric_criteria"]
     worst_sample_number = params["worst_sample_number"]
+    pretrained_disp_model = params["pretrained_disp_model"]
     seed = params["seed"]
     hyperparams = {
         "alpha_motion": params["alpha_motion"],
@@ -391,7 +392,7 @@ def main():
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if wandb_api_key:
         wandb.login(key=wandb_api_key)
-        pretrained_str = "pretrained" if pretrained else "not_pretrained"
+        pretrained_str = "pretrained" if pretrained_disp else "not_pretrained"
         date_str = datetime.datetime.now().strftime("%Y-%m-%d")
         run = wandb.init(
             name=f"unsupervised_{depth_model}_{pretrained_str}_{date_str}_{run_directory.split('/')[-1]}",
@@ -408,7 +409,7 @@ def main():
                 "depth_model": depth_model,
                 "motion_model": motion_model,
                 "csv_split": csv_split,
-                "pretrained": pretrained,
+                "pretrained_disp": pretrained_disp,
                 "alpha_motion": hyperparams["alpha_motion"],
                 "beta_motion": hyperparams["beta_motion"],
                 "alpha_depth": hyperparams["alpha_depth"],
@@ -416,12 +417,19 @@ def main():
                 "beta_cyc": hyperparams["beta_cyc"],    
                 "alpha_rgb": hyperparams["alpha_rgb"],
                 "beta_rgb": hyperparams["beta_rgb"], 
+                "pretrained_disp_model": pretrained_disp_model,
             },
         )
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
 
     depth_est_network = DispNet()
+    if pretrained_disp:
+        print('Loading pretrained Disparity model')
+        depth_est_network.load_state_dict(
+            torch.load(pretrained_disp_model)
+        )
+        print(f'Pretrained weights loaded from {pretrained_disp_model}')        
     motion_est_network = MotionFieldNet()
     params = list(depth_est_network.parameters()) + list(
         motion_est_network.parameters()
