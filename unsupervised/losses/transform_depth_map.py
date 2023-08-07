@@ -198,7 +198,7 @@ def _using_motion_vector(
     projected_translation = torch.einsum("bij,bjhw->bihw", intrinsic_mat, translation)
     pcoords = pcoords + projected_translation
     x, y, z = torch.unbind(pcoords, dim=1)
-    return x / z, y / z, z
+    return x / (z + 1e-12), y / (z + 1e-12), z
 
 
 def _clamp_and_filter_result(pixel_x, pixel_y, z):
