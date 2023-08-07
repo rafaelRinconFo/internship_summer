@@ -104,7 +104,7 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
         for i, data in enumerate(dataloader):
             if i > n_images:
                 break
-            image_1, image_2 = data
+            image_1, image_2, _ = data
             image_1, image_2 = image_1.to(device), image_2.to(device)
             image_1, image_2 = image_1.squeeze(1), image_2.squeeze(1)
             
@@ -112,7 +112,7 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             if len(pred_1.shape) < 4:
                 pred_1 = pred_1.unsqueeze(1)
 
-            pred_1 = torch.nn.functional.interpolate(
+            depth_1 = torch.nn.functional.interpolate(
                 pred_1,
                 size=image_1.shape[-2:],
                 mode="bicubic",
@@ -126,8 +126,8 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
 
             if len(pred_2.shape) < 4:
                 pred_2 = pred_2.unsqueeze(1)
-            pred_2 = torch.nn.functional.interpolate(
-                pred_1,
+            depth_2 = torch.nn.functional.interpolate(
+                pred_2,
                 size=image_2.shape[-2:],
                 mode="bicubic",
                 align_corners=False,
@@ -139,24 +139,28 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             _,_,motion_pred = motion_est_network(motion_input)           
 
 
-            image_logger.append(
-                wandb.Image(
-                    image_1, caption=f"Init frame for prediction {i}"
-                ),
-                wandb.Image(
-                    image_2, caption=f"Final frame for prediction {i}"
-                )
+            image_logger.extend(
+                [
+                    wandb.Image(
+                        image_1[0], caption=f"Init frame for prediction {i}"
+                    ),
+                    wandb.Image(
+                        image_2[0], caption=f"Final frame for prediction {i}"
+                    )
+                ]
             )
 
-            depth_prediction_logger.append(
-                wandb.Image(
-                    depth_map_color_scale(pred_1[0].cpu().numpy()),
-                    caption=f"Depth prediction {i} for the initial frame",
+            depth_prediction_logger.extend(
+                [
+                    wandb.Image(
+                        depth_map_color_scale(depth_1[0].cpu().numpy()),
+                        caption=f"Depth prediction {i} for the initial frame",
                 ),
-                wandb.Image(
-                    depth_map_color_scale(pred_2[0].cpu().numpy()),
-                    caption=f"Depth prediction {i} for the final frame",
+                    wandb.Image(
+                        depth_map_color_scale(depth_2[0].cpu().numpy()),
+                        caption=f"Depth prediction {i} for the final frame",
                 )
+                ]
             )
 
             motion_prediction_logger.append(
