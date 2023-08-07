@@ -117,8 +117,8 @@ class Trainer:
             )
             total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
 
-            disp1 = 1/depth_pred_1
-            disp2 = 1/depth_pred_2
+            disp1 = 1/(depth_pred_1+1e-12)
+            disp2 = 1/(depth_pred_2+1e-12)
 
             L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
                 "l1smoothness"
@@ -179,7 +179,7 @@ class Trainer:
             # Print and store batch loss
             # batch_loss = loss.item()/depth_map.shape[0]
             train_losses.append(total_loss.cpu().data.numpy())
-            print(f'Current memory use: {torch.cuda.max_memory_allocated()}')
+            # print(f'Current memory use: {torch.cuda.max_memory_allocated()}')
 
         train_losses_dict = {
             "L_reg_mot": sum(losses_result_dict["L_reg_mot"]) / len(losses_result_dict["L_reg_mot"]),
@@ -265,6 +265,8 @@ class Trainer:
                 )
                 total_translation_inv = torch.add(residual_translation_inv,background_translation_inv)
 
+                disp1 = 1/(depth_pred_1+1e-12)
+                disp2 = 1/(depth_pred_2+1e-12)
 
                 L_reg_mot = self.hyperparams["alpha_motion"] * self.loss_dict[
                     "l1smoothness"
@@ -286,11 +288,11 @@ class Trainer:
 
                 L_reg_dep_1 = self.hyperparams["alpha_depth"] * self.loss_dict[
                     "joint_bilateral_smoothing"
-                ](depth_pred_1, image_1)
+                ](disp1, image_1)
 
                 L_reg_dep_2 = self.hyperparams["alpha_depth"] * self.loss_dict[
                     "joint_bilateral_smoothing"
-                ](depth_pred_2, image_2)
+                ](disp2, image_2)
 
                 inverse_intrinsics_mat = invert_intrinsics_matrix(intrinsic_mat)
 
@@ -320,14 +322,14 @@ class Trainer:
                 losses_result_dict["L_cyc"].append(L_cyc.cpu().data.numpy())
                 losses_result_dict["L_rgb"].append(L_rgb.cpu().data.numpy())
 
-                total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2 # + L_cyc + L_rgb
+                total_loss = L_reg_mot + L_reg_mot_inv + L_reg_dep_1 + L_reg_dep_2  + L_cyc + L_rgb
 
 
                 # Print and store batch loss
                 # batch_loss = loss.item()/depth_map.shape[0]
                 val_losses.append(total_loss.cpu().data.numpy())
 
-            train_losses_dict = {
+            val_losses_dict = {
                 "val_L_reg_mot": sum(losses_result_dict["L_reg_mot"]) / len(losses_result_dict["L_reg_mot"]),
                 "val_L_reg_mot_inv": sum(losses_result_dict["L_reg_mot_inv"]) / len(losses_result_dict["L_reg_mot_inv"]),
                 "val_L_reg_dep_1": sum(losses_result_dict["L_reg_dep_1"]) / len(losses_result_dict["L_reg_dep_1"]),
@@ -339,7 +341,7 @@ class Trainer:
             average_val_loss = sum(val_losses) / len(val_losses)
 
         average_val_loss = sum(val_losses) / len(val_losses)
-        return train_losses_dict, average_val_loss
+        return average_val_loss, val_losses_dict
 
 
 def main():
@@ -497,7 +499,7 @@ def main():
                 )
                 torch.save(
                     motion_est_network.state_dict(),
-                    os.path.join(run_directory, f"depth_est_epoch_{epoch}.pth"),
+                    os.path.join(run_directory, f"motion_est_epoch_{epoch}.pth"),
                 )
             except Exception as e:
                 print(f"Error saving model: {e}")
