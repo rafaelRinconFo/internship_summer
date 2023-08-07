@@ -1,16 +1,16 @@
 #!/bin/bash
 
-#SBATCH --time=12:00:00
-#SBATCH --job-name=train_supervised_small2
+#SBATCH --time=48:00:00
+#SBATCH --job-name=train_unsupervised
 #SBATCH --partition=mundus 
-#SBATCH --gres=gpu:a100-5:1
+#SBATCH --gres=gpu:a100-20:1
 #SBATCH --cpus-per-task=16
-#SBATCH --output=../logs/train_supervised_small2.out
-#SBATCH --error=../logs/err_train_supervised_small2.out
+#SBATCH --output=../logs/train_unsupervised_pretrained.out
+#SBATCH --error=../logs/err_train_unsupervised_pretrained.out
 
 # Check if arguments are provided
-#export WANDB_API_KEY=
-
+export WANDB_API_KEY=
+export TMPDIR=/mundus/rrincon529/tmp
 
 # Assign names to input arguments
 toy=${1:-"false"}
@@ -40,4 +40,4 @@ echo "Toy flag set as $toy "
 
 
 
-python -m supervised.train --toy $toy
+python -m unsupervised.train --toy $toy
