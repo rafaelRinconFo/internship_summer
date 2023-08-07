@@ -73,6 +73,13 @@ class Trainer:
             image_2 = image_2.to(self.device)
             intrinsic_mat = intrinsic_mat.to(self.device)
 
+
+            if len(image_1.shape)>4:
+                image_1 = image_1.squeeze(1)
+            if len(image_2.shape)>4:
+                image_2 = image_2.squeeze(1)
+
+
             # Sets the gradients attached to the parameters objects to zero.
             self.optimizer.zero_grad()
             # Predictions for the depth network
@@ -101,6 +108,11 @@ class Trainer:
 
             if len(depth_pred_2.shape) == 2:
                 depth_pred_2 = depth_pred_2.unsqueeze(0)
+
+            if len(depth_pred_1.shape) < 4:
+                depth_pred_1 = depth_pred_1.unsqueeze(1)
+            if len(depth_pred_2.shape) < 4:
+                depth_pred_2 = depth_pred_2.unsqueeze(1)
 
             # Inputs for the motion network
             motion_input = torch.cat([image_1, depth_pred_1, image_2, depth_pred_2], dim=1)
@@ -215,6 +227,12 @@ class Trainer:
 
 
                 image_1, image_2, intrinsic_mat = data
+
+                # For the case of MiDas
+                if len(image_1.shape)>4:
+                    image_1 = image_1.squeeze(1)
+                if len(image_2.shape)>4:
+                    image_2 = image_2.squeeze(1)
                 # if intrinsic_mat == torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]]):
                 #     continue
                 # Moving to GPU
@@ -250,6 +268,11 @@ class Trainer:
 
                 if len(depth_pred_2.shape) == 2:
                     depth_pred_2 = depth_pred_2.unsqueeze(0)
+
+                if len(depth_pred_1.shape) < 4:
+                    depth_pred_1 = depth_pred_1.unsqueeze(1)
+                if len(depth_pred_2.shape) < 4:
+                    depth_pred_2 = depth_pred_2.unsqueeze(1)
 
                 # Inputs for the motion network
                 motion_input = torch.cat([image_1, depth_pred_1, image_2, depth_pred_2], dim=1)
@@ -390,7 +413,7 @@ def main():
     # TODO Change this, the loss here will work differently than in supervised
     # loss_function = loss_dict[params["loss"]]
 
-    run_directory = create_run_directory(depth_model)
+    run_directory = create_run_directory(depth_model,'unsupervised')
 
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if wandb_api_key:
@@ -430,10 +453,10 @@ def main():
     if pretrained_disp:
         print('Loading pretrained Disparity model')
         if "DPT" in depth_model or "MiDaS" in depth_model:
-            depth_est_network, transforms = get_midas_env(depth_model, pretrained=pretrained_disp, model_path=pretrained_disp_model)
+            depth_est_network, transforms = get_midas_env(depth_model, pretrained=pretrained_disp, weights_path=pretrained_disp_model)
             print(f'Pretrained weights loaded from {pretrained_disp_model}')
         elif "DispNet" == depth_model:
-            depth_est_network, transforms = get_disp_net(depth_model, pretrained=pretrained_disp)
+            depth_est_network, transforms = get_disp_net(depth_model, pretrained=pretrained_disp, weights_path=pretrained_disp_model)
         print(f'Pretrained weights loaded from {pretrained_disp_model}')        
     else:
         depth_est_network = DispNet()

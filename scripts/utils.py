@@ -5,11 +5,11 @@ import cv2
 import numpy as np
 
 
-def create_run_directory(model_type) -> str:
+def create_run_directory(model_type, experiment_type: str = 'supervised') -> str:
     now = datetime.now()
     date_time = now.strftime("%d/%m/%Y")
     head_directory = (
-        f"experiments/supervised/{model_type}/experiments_{date_time.replace('/', '_')}"
+        f"experiments/{experiment_type}/{model_type}/experiments_{date_time.replace('/', '_')}"
     )
     i = 1
     while os.path.exists(os.path.join(head_directory, f"run_{i}")):

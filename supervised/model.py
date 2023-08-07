@@ -36,7 +36,7 @@ def get_disp_net(model_name: str, pretrained: bool = False, weights_path: str = 
 
     model = DispNet()
     if pretrained and weights_path is not None:
-        model.load_state_dict(torch.load("models/depth_estimation/unsupervised/DispNet.ckpt"))
+        model.load_state_dict(torch.load(weights_path))
         print("DispNet network available. Weights loaded successfully from ", weights_path)
     elif pretrained and weights_path is None:
         raise Exception("weights_path must be specified if pretrained is True")
