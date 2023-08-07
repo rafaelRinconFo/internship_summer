@@ -1,5 +1,7 @@
 csv_split: sequential_images_split.csv
-depth_model: paper_google # This will be for future work if someone wants to use a different depth model
+# It can be DPT_Large, DPT_Hybrid or MiDaS_small. DispNet is the originally intended model if we 
+# limit ourselves to the models used in the paper
+depth_model: DispNet # This will be for future work if someone wants to use a different depth model
 motion_model: mot_paper_google
 batch_size: 4
 epochs: 1
