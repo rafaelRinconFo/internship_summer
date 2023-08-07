@@ -4,7 +4,7 @@ from torchvision import transforms as T
 from unsupervised.model import DispNet
 
 
-def get_midas_env(model_name: str, pretrained: bool = True):
+def get_midas_env(model_name: str, pretrained: bool = True, weights_path: str = None):
     """
     Returns the model and the necessary transforms for the MiDaS model
     
@@ -22,6 +22,10 @@ def get_midas_env(model_name: str, pretrained: bool = True):
     else:
         transform = midas_transforms.small_transform
 
+    if weights_path is not None:
+        midas.load_state_dict(torch.load(weights_path))
+        print(f"{model_name} network available. Weights loaded successfully from ", weights_path)
+
     return midas, transform
 
 def get_disp_net(model_name: str, pretrained: bool = False, weights_path: str = None):
@@ -33,6 +37,7 @@ def get_disp_net(model_name: str, pretrained: bool = False, weights_path: str = 
     model = DispNet()
     if pretrained and weights_path is not None:
         model.load_state_dict(torch.load("models/depth_estimation/unsupervised/DispNet.ckpt"))
+        print("DispNet network available. Weights loaded successfully from ", weights_path)
     elif pretrained and weights_path is None:
         raise Exception("weights_path must be specified if pretrained is True")
     

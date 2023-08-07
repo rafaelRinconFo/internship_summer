@@ -17,6 +17,7 @@ from unsupervised.losses import l1smoothness, sqrt_sparsity, joint_bilateral_smo
 from unsupervised.losses.intrinsics_utils import invert_intrinsics_matrix
 from unsupervised.losses.consistency_losses import rgbd_and_motion_consistency_loss
 
+from supervised import get_midas_env, get_disp_net
 
 from tqdm import tqdm
 from distutils.util import strtobool
@@ -425,20 +426,24 @@ def main():
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
 
-    depth_est_network = DispNet()
+    
     if pretrained_disp:
         print('Loading pretrained Disparity model')
-        depth_est_network.load_state_dict(
-            torch.load(pretrained_disp_model)
-        )
+        if "DPT" in depth_model or "MiDaS" in depth_model:
+            depth_est_network, transforms = get_midas_env(depth_model, pretrained=pretrained_disp, model_path=pretrained_disp_model)
+            print(f'Pretrained weights loaded from {pretrained_disp_model}')
+        elif "DispNet" == depth_model:
+            depth_est_network, transforms = get_disp_net(depth_model, pretrained=pretrained_disp)
         print(f'Pretrained weights loaded from {pretrained_disp_model}')        
+    else:
+        depth_est_network = DispNet()
     motion_est_network = MotionFieldNet()
     params = list(depth_est_network.parameters()) + list(
         motion_est_network.parameters()
     )
     optim = torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
 
-    transforms = T.Compose([T.ToTensor(), T.Resize((384, 768), antialias=True)])
+    #transforms = T.Compose([T.ToTensor(), T.Resize((384, 768), antialias=True)])
 
     if toy:
         print(
