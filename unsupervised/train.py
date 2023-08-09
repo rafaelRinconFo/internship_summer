@@ -453,8 +453,7 @@ def main():
     if pretrained_disp:
         print('Loading pretrained Disparity model')
         if "DPT" in depth_model or "MiDaS" in depth_model:
-            depth_est_network, transforms = get_midas_env(depth_model, pretrained=pretrained_disp, weights_path=pretrained_disp_model)
-            print(f'Pretrained weights loaded from {pretrained_disp_model}')
+            depth_est_network, transforms = get_midas_env(depth_model, pretrained=False, weights_path=pretrained_disp_model)
         elif "DispNet" == depth_model:
             depth_est_network, transforms = get_disp_net(depth_model, pretrained=pretrained_disp, weights_path=pretrained_disp_model)
         print(f'Pretrained weights loaded from {pretrained_disp_model}')        
