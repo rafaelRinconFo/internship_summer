@@ -16,7 +16,14 @@ def matrix_from_angles(rot):
     """
     rank = rot.dim()
     # Swap the two last dimensions
-    perm = torch.cat([torch.arange(0, rank - 1, dtype=torch.long), torch.tensor([rank]), torch.tensor([rank - 1])], dim=0)
+    perm = torch.cat(
+        [
+            torch.arange(0, rank - 1, dtype=torch.long),
+            torch.tensor([rank]),
+            torch.tensor([rank - 1]),
+        ],
+        dim=0,
+    )
 
     return euler_angles_to_matrix(-rot)
 
@@ -36,7 +43,14 @@ def angles_from_matrix(matrix):
     """
     rank = matrix.dim()
     # Swap the two last dimensions
-    perm = torch.cat([torch.arange(0, rank - 2, dtype=torch.long), torch.tensor([rank - 1]), torch.tensor([rank - 2])], dim=0)
+    perm = torch.cat(
+        [
+            torch.arange(0, rank - 2, dtype=torch.long),
+            torch.tensor([rank - 1]),
+            torch.tensor([rank - 2]),
+        ],
+        dim=0,
+    )
     return -matrix_to_euler_angles(matrix.permute(*perm), convention="XYZ")
 
 
@@ -92,9 +106,10 @@ def combine(rot_mat1, trans_vec1, rot_mat2, trans_vec2):
     # total translation is R2*t1 + t2.
     r2r1 = torch.matmul(rot_mat2, rot_mat1)
 
-
     # Reshape the trans_vec1 tensor to have a compatible shape for matrix multiplication
-    trans_vec1_reshaped = trans_vec1.view(trans_vec1.shape[0], trans_vec1.shape[1], -1)  # shape: (batch_size, num_channels, height * width)
+    trans_vec1_reshaped = trans_vec1.view(
+        trans_vec1.shape[0], trans_vec1.shape[1], -1
+    )  # shape: (batch_size, num_channels, height * width)
 
     # Perform matrix multiplication
     result_reshaped = torch.matmul(rot_mat2, trans_vec1_reshaped)
@@ -103,9 +118,10 @@ def combine(rot_mat1, trans_vec1, rot_mat2, trans_vec2):
     r2t1 = result_reshaped.view(trans_vec1.shape)
     return r2r1, r2t1 + trans_vec2
 
+
 def euler_angles_to_matrix(euler_angles):
     batch_size = euler_angles.size(0)
-    cos_theta = torch.cos(euler_angles[:, 0]) 
+    cos_theta = torch.cos(euler_angles[:, 0])
     sin_theta = torch.sin(euler_angles[:, 0])
     cos_phi = torch.cos(euler_angles[:, 1])
     sin_phi = torch.sin(euler_angles[:, 1])
@@ -114,22 +130,34 @@ def euler_angles_to_matrix(euler_angles):
 
     rotation_matrix = torch.zeros((batch_size, 3, 3), device=euler_angles.device)
 
-    rotation_matrix[:, 0, 0] = (cos_theta * cos_psi)[:,0,0]
-    rotation_matrix[:, 0, 1] = (-cos_phi * sin_psi + sin_phi * sin_theta * cos_psi)[:,0,0]
-    rotation_matrix[:, 0, 2] = (sin_phi * sin_psi + cos_phi * sin_theta * cos_psi)[:,0,0]
-    rotation_matrix[:, 1, 0] = (cos_theta * sin_psi)[:,0,0]
-    rotation_matrix[:, 1, 1] = (cos_phi * cos_psi + sin_phi * sin_theta * sin_psi)[:,0,0]
-    rotation_matrix[:, 1, 2] = (-sin_phi * cos_psi + cos_phi * sin_theta * sin_psi)[:,0,0]
-    rotation_matrix[:, 2, 0] = (-sin_theta)[:,0,0]
-    rotation_matrix[:, 2, 1] = (sin_phi * cos_theta)[:,0,0]
-    rotation_matrix[:, 2, 2] = (cos_phi * cos_theta)[:,0,0]
-    
+    rotation_matrix[:, 0, 0] = (cos_theta * cos_psi)[:, 0, 0]
+    rotation_matrix[:, 0, 1] = (-cos_phi * sin_psi + sin_phi * sin_theta * cos_psi)[
+        :, 0, 0
+    ]
+    rotation_matrix[:, 0, 2] = (sin_phi * sin_psi + cos_phi * sin_theta * cos_psi)[
+        :, 0, 0
+    ]
+    rotation_matrix[:, 1, 0] = (cos_theta * sin_psi)[:, 0, 0]
+    rotation_matrix[:, 1, 1] = (cos_phi * cos_psi + sin_phi * sin_theta * sin_psi)[
+        :, 0, 0
+    ]
+    rotation_matrix[:, 1, 2] = (-sin_phi * cos_psi + cos_phi * sin_theta * sin_psi)[
+        :, 0, 0
+    ]
+    rotation_matrix[:, 2, 0] = (-sin_theta)[:, 0, 0]
+    rotation_matrix[:, 2, 1] = (sin_phi * cos_theta)[:, 0, 0]
+    rotation_matrix[:, 2, 2] = (cos_phi * cos_theta)[:, 0, 0]
+
     return rotation_matrix
+
 
 def matrix_to_euler_angles(rotation_matrix):
     batch_size = rotation_matrix.size(0)
 
-    theta = torch.atan2(-rotation_matrix[:, 2, 0], torch.sqrt(rotation_matrix[:, 0, 0] ** 2 + rotation_matrix[:, 1, 0] ** 2))
+    theta = torch.atan2(
+        -rotation_matrix[:, 2, 0],
+        torch.sqrt(rotation_matrix[:, 0, 0] ** 2 + rotation_matrix[:, 1, 0] ** 2),
+    )
     phi = torch.atan2(rotation_matrix[:, 2, 1], rotation_matrix[:, 2, 2])
     psi = torch.atan2(rotation_matrix[:, 1, 0], rotation_matrix[:, 0, 0])
 

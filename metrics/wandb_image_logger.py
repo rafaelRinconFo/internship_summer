@@ -26,12 +26,9 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
 
             if len(pred.shape) < 4:
                 pred = pred.unsqueeze(1)
-            
+
             pred = torch.nn.functional.interpolate(
-                pred,
-                size=depth_map.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
+                pred, size=depth_map.shape[-2:], mode="bicubic", align_corners=False
             ).squeeze()
             # print(name)
             # print(type(name))
@@ -70,18 +67,16 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
                 )
             )
             # logs histogram of the prediction and the ground truth
-        wandb.log({"Ground truth histogram": wandb.Histogram(depth_map_flat)}, commit=False)
+        wandb.log(
+            {"Ground truth histogram": wandb.Histogram(depth_map_flat)}, commit=False
+        )
         wandb.log({"Prediction histogram": wandb.Histogram(pred_flat)}, commit=False)
 
-            # wandb.log(
-            #     {"Histogram prediction":wandb.Histogram(pred_flat),#, title=f"Prediction histogram for {names[0].split('/')[-1]}")
-            #     "Histogram ground truth":wandb.Histogram(depth_map_flat)},#, title=f"Ground truth histogram for {names[0].split('/')[-1]}")
-            #     commit=False,
-            # )
-            
-            
-
-
+        # wandb.log(
+        #     {"Histogram prediction":wandb.Histogram(pred_flat),#, title=f"Prediction histogram for {names[0].split('/')[-1]}")
+        #     "Histogram ground truth":wandb.Histogram(depth_map_flat)},#, title=f"Ground truth histogram for {names[0].split('/')[-1]}")
+        #     commit=False,
+        # )
 
         wandb.log(
             {
@@ -92,9 +87,11 @@ def image_logger(model, dataloader, wandb, device, n_images=5):
             },
             commit=False,
         )
-        
 
-def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader, wandb, device, n_images=5):
+
+def image_logger_unsupervised(
+    depth_est_network, motion_est_network, dataloader, wandb, device, n_images=5
+):
     depth_est_network.eval()
     motion_est_network.eval()
     image_logger = []
@@ -107,16 +104,13 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             image_1, image_2, _ = data
             image_1, image_2 = image_1.to(device), image_2.to(device)
             image_1, image_2 = image_1.squeeze(1), image_2.squeeze(1)
-            
+
             pred_1 = depth_est_network(image_1)
             if len(pred_1.shape) < 4:
                 pred_1 = pred_1.unsqueeze(1)
 
             depth_1 = torch.nn.functional.interpolate(
-                pred_1,
-                size=image_1.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
+                pred_1, size=image_1.shape[-2:], mode="bicubic", align_corners=False
             ).squeeze()
             if len(pred_1.shape) == 2:
                 pred_1 = pred_1.unsqueeze(0)
@@ -127,26 +121,18 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             if len(pred_2.shape) < 4:
                 pred_2 = pred_2.unsqueeze(1)
             depth_2 = torch.nn.functional.interpolate(
-                pred_2,
-                size=image_2.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
+                pred_2, size=image_2.shape[-2:], mode="bicubic", align_corners=False
             ).squeeze()
             if len(pred_2.shape) == 2:
                 pred_2 = pred_2.unsqueeze(0)
 
             motion_input = torch.cat([image_1, pred_1, image_2, pred_2], dim=1)
-            _,_,motion_pred = motion_est_network(motion_input)           
-
+            _, _, motion_pred = motion_est_network(motion_input)
 
             image_logger.extend(
                 [
-                    wandb.Image(
-                        image_1[0], caption=f"Init frame for prediction {i}"
-                    ),
-                    wandb.Image(
-                        image_2[0], caption=f"Final frame for prediction {i}"
-                    )
+                    wandb.Image(image_1[0], caption=f"Init frame for prediction {i}"),
+                    wandb.Image(image_2[0], caption=f"Final frame for prediction {i}"),
                 ]
             )
 
@@ -155,18 +141,17 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
                     wandb.Image(
                         depth_map_color_scale(depth_1[0].cpu().numpy()),
                         caption=f"Depth prediction {i} for the initial frame",
-                ),
+                    ),
                     wandb.Image(
                         depth_map_color_scale(depth_2[0].cpu().numpy()),
                         caption=f"Depth prediction {i} for the final frame",
-                )
+                    ),
                 ]
             )
 
             motion_prediction_logger.append(
                 wandb.Image(
-                    motion_pred[0],
-                    caption=f"Residual translation for prediction {i}",
+                    motion_pred[0], caption=f"Residual translation for prediction {i}"
                 )
             )
 
@@ -178,6 +163,7 @@ def image_logger_unsupervised(depth_est_network, motion_est_network, dataloader,
             },
             commit=False,
         )
+
 
 def worst_samples_image_logger(wandb, n_images, batch, pred, metric_value, metric_name):
     image_logger = []
@@ -217,4 +203,3 @@ def worst_samples_image_logger(wandb, n_images, batch, pred, metric_value, metri
         },
         commit=False,
     )
-

@@ -142,7 +142,7 @@ def _using_motion_vector(
     if translation.dim() == 2:
         translation = torch.unsqueeze(torch.unsqueeze(translation, 1), 1)
     _, height, width = depth.shape
-    
+
     grid = torch.squeeze(
         torch.stack(
             torch.meshgrid(
@@ -153,17 +153,16 @@ def _using_motion_vector(
         ),
         dim=3,
     )
-    
+
     grid = grid.type(torch.FloatTensor).to(device=depth.device)
 
-    
     if intrinsic_mat_inv is None:
         intrinsic_mat_inv = torch.inverse(intrinsic_mat).to(device=intrinsic_mat.device)
     # Use the depth map and the inverse intrinsic matrix to generate a point
     # cloud xyz.
-    
+
     xyz = torch.einsum("bij,jhw,bhw->bihw", intrinsic_mat_inv, grid, depth)
-    
+
     # TPU pads aggressively tensors that have small dimensions. Therefore having
     # A rotation of the shape [....., 3, 3] would overflow the HBM memory. To
     # address this, we represnet the rotations is a 3x3 nested python tuple of

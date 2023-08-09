@@ -6,6 +6,7 @@ import torch
 # in the file consistency_losses.py
 # This takes as reference the work in https://github.com/chamorajg/pytorch_depth_and_motion_planning/tree/master
 
+
 def joint_bilateral_smoothing(smoothed, reference):
     """Computes edge-aware smoothness loss.
     This loss is contained in the section 3.2.2 of the paper.
@@ -31,8 +32,7 @@ def joint_bilateral_smoothing(smoothed, reference):
 
 def normalize_motion_map(res_motion_map, motion_map):
     """Normalizes a residual motion map by the motion map's norm."""
-    norm = torch.mean(
-        torch.square(motion_map), dim=[1, 2, 3], keepdim=True) * 3.0
+    norm = torch.mean(torch.square(motion_map), dim=[1, 2, 3], keepdim=True) * 3.0
     return res_motion_map / torch.sqrt(norm + 1e-12)
 
 
@@ -57,7 +57,8 @@ def l1smoothness(tensor, wrap_around=True):
         tensor_dx = tensor_dx[:, :, 1:, 1:]
         tensor_dy = tensor_dy[:, :, 1:, 1:]
     return torch.mean(
-        torch.sqrt(1e-24 + torch.square(tensor_dx) + torch.square(tensor_dy)))
+        torch.sqrt(1e-24 + torch.square(tensor_dx) + torch.square(tensor_dy))
+    )
 
 
 def sqrt_sparsity(motion_map):

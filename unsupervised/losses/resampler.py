@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 
+
 def safe_gather_nd(params, indices):
     """Gather slices from params into a Tensor with shape specified by indices.
     Similar functionality to tf.gather_nd with difference: when index is out of
@@ -26,23 +27,23 @@ def safe_gather_nd(params, indices):
     # Check whether each component of each index is in range [min, max], and
     # allow an index only if all components are in range:
     mask = torch.all(
-        torch.logical_and(indices >= min_index, indices <= max_index), dim=1)
+        torch.logical_and(indices >= min_index, indices <= max_index), dim=1
+    )
     mask = torch.unsqueeze(mask, -1)
 
-    return (mask.type(dtype=params.dtype) *
-            torch_gather_nd(params, clipped_indices))
+    return mask.type(dtype=params.dtype) * torch_gather_nd(params, clipped_indices)
+
 
 def torch_gather_nd(params, indices):
-    '''
+    """
     the input indices must be a 2d tensor in the form of [[a,b,..,c],...], 
     which represents the location of the elements.
-    '''
+    """
     indices = indices.type(torch.LongTensor)
-
 
     params = params.view(params.shape[0], 512, 1024, -1)
 
-    indices = indices.view(indices.shape[0],512,1024,-1)
+    indices = indices.view(indices.shape[0], 512, 1024, -1)
 
     output = torch.zeros_like(params, device=params.device)
 
@@ -57,15 +58,12 @@ def torch_gather_nd(params, indices):
     ind_j = torch.arange(0, end=indices.shape[1], dtype=torch.long)
     ind_k = torch.arange(0, end=indices.shape[2], dtype=torch.long)
 
-    
-
     ind = torch.meshgrid(ind_i, ind_j, ind_k)
 
     index = torch.unbind(indices[ind], dim=-1)
-    #index = torch.unbind(indices[ind], dim=0)
+    # index = torch.unbind(indices[ind], dim=0)
 
-
-    #output[index] = params[index]
+    # output[index] = params[index]
 
     return None
     # for i in range(indices.shape[0]):
@@ -75,11 +73,8 @@ def torch_gather_nd(params, indices):
     # print(torch.all(torch.eq(new_output, output)))
     return output
 
-def resampler_with_unstacked_warp(data,
-                                  warp_x,
-                                  warp_y,
-                                  safe=True,
-                                  name='resampler'):
+
+def resampler_with_unstacked_warp(data, warp_x, warp_y, safe=True, name="resampler"):
     """Resamples input data at user defined coordinates.
     Args:
     data: Tensor of shape `[batch_size, data_height, data_width,
@@ -100,21 +95,21 @@ def resampler_with_unstacked_warp(data,
     """
     warp_x = warp_x
 
-    
     warp_y = warp_y
 
-    
     data = data
     if not warp_x.shape == warp_y.shape:
         raise ValueError(
-            'warp_x and warp_y are of incompatible shapes: %s vs %s ' %
-            (str(warp_x.shape), str(warp_y.shape)))
+            "warp_x and warp_y are of incompatible shapes: %s vs %s "
+            % (str(warp_x.shape), str(warp_y.shape))
+        )
     warp_shape = torch.tensor(list(warp_x.shape))
     if warp_x.shape[0] != data.shape[0]:
         raise ValueError(
-            '\'warp_x\' and \'data\' must have compatible first '
-            'dimension (batch size), but their shapes are %s and %s ' %
-            (str(warp_x.shape[0]), str(data.shape[0])))
+            "'warp_x' and 'data' must have compatible first "
+            "dimension (batch size), but their shapes are %s and %s "
+            % (str(warp_x.shape[0]), str(data.shape[0]))
+        )
     # Compute the four points closest to warp with integer value.
     warp_floor_x = torch.floor(warp_x)
     warp_floor_y = torch.floor(warp_y)
@@ -127,8 +122,6 @@ def resampler_with_unstacked_warp(data,
     warp_ceil_x = torch.ceil(warp_x).int()
     warp_ceil_y = torch.ceil(warp_y).int()
 
-
-
     left_warp_weight = 1 - right_warp_weight
     up_warp_weight = 1 - down_warp_weight
 
@@ -138,17 +131,19 @@ def resampler_with_unstacked_warp(data,
 
     # A shape like warp_shape but with all sizes except the first set to 1:
     warp_batch_shape = torch.cat(
-        (warp_shape[0:1], torch.ones_like(warp_shape[1:])), dim=0)
+        (warp_shape[0:1], torch.ones_like(warp_shape[1:])), dim=0
+    )
 
-    warp_batch = torch.arange(start=0, end=warp_shape[0], 
-                dtype=torch.int32, device=warp_y.device).reshape(tuple(warp_batch_shape))
+    warp_batch = torch.arange(
+        start=0, end=warp_shape[0], dtype=torch.int32, device=warp_y.device
+    ).reshape(tuple(warp_batch_shape))
 
-    #print(warp_batch)
+    # print(warp_batch)
     # Broadcast to match shape:
-    warp_batch = torch.add(warp_batch, 
-                    torch.zeros_like(warp_y, dtype=torch.int32, device=warp_y.device))
+    warp_batch = torch.add(
+        warp_batch, torch.zeros_like(warp_y, dtype=torch.int32, device=warp_y.device)
+    )
 
-                 
     left_warp_weight = torch.unsqueeze(left_warp_weight, 1)
     down_warp_weight = torch.unsqueeze(down_warp_weight, 1)
     up_warp_weight = torch.unsqueeze(up_warp_weight, 1)
@@ -159,52 +154,57 @@ def resampler_with_unstacked_warp(data,
     down_left_warp = torch.stack([warp_batch, warp_ceil_y, warp_floor_x], dim=1)
     down_right_warp = torch.stack([warp_batch, warp_ceil_y, warp_ceil_x], dim=1)
 
-    up_left_warp=up_left_warp.type(torch.int64)
+    up_left_warp = up_left_warp.type(torch.int64)
 
-    up_right_warp=up_right_warp.type(torch.int64)
+    up_right_warp = up_right_warp.type(torch.int64)
 
-    down_left_warp=down_left_warp.type(torch.int64)
+    down_left_warp = down_left_warp.type(torch.int64)
 
-    down_right_warp=down_right_warp.type(torch.int64)
-
+    down_right_warp = down_right_warp.type(torch.int64)
 
     def gather_nd(params, indices):
 
-        
-        #print('Just want to know how indices are')
-        #print(indices)
-        #return (safe_gather_nd if safe else torch_gather_nd)(params,indices)
+        # print('Just want to know how indices are')
+        # print(indices)
+        # return (safe_gather_nd if safe else torch_gather_nd)(params,indices)
         # print(params[0,1,:,:].shape)
         # print(indices[0,1:,:,:].shape)
 
         # output = torch.zeros_like(params, device=params.device)
         output_list = []
         for i, batch in enumerate(params):
-            output_tensor = torch.zeros_like(params[i,:,:,:], device= warp_y.device)
+            output_tensor = torch.zeros_like(params[i, :, :, :], device=warp_y.device)
 
             # for k in range(indices.shape[2]):
             #     for l in range(indices.shape[3]):
-                        # print(f'Y coordinates{indices[i,1,k,l]}')
-                        # print(f'X Coordinates {indices[i,2,k,l]}')
-            output_tensor[:,indices[i,1,:,:],indices[i,2,:,:]] = batch[:,indices[i,1,:,:],indices[i,2,:,:]]
+            # print(f'Y coordinates{indices[i,1,k,l]}')
+            # print(f'X Coordinates {indices[i,2,k,l]}')
+            output_tensor[:, indices[i, 1, :, :], indices[i, 2, :, :]] = batch[
+                :, indices[i, 1, :, :], indices[i, 2, :, :]
+            ]
 
             output_tensor = output_tensor.unsqueeze(0)
 
             output_list.append(output_tensor)
 
-        torch.cat(output_list,dim=0)
-        return torch.cat(output_list,dim=0)
+        torch.cat(output_list, dim=0)
+        return torch.cat(output_list, dim=0)
         # print(torch.all(torch.eq(new_output, output)))
-        #return (safe_gather_nd if safe else torch.gather)(params,0, indices)
-
+        # return (safe_gather_nd if safe else torch.gather)(params,0, indices)
 
     # gather data then take weighted average to get resample result.
     result = (
-        (gather_nd(data, up_left_warp) * left_warp_weight +
-            gather_nd(data, up_right_warp) * right_warp_weight) * up_warp_weight +
-        (gather_nd(data, down_left_warp) * left_warp_weight +
-            gather_nd(data, down_right_warp) * right_warp_weight) *
-        down_warp_weight)
+        (
+            gather_nd(data, up_left_warp) * left_warp_weight
+            + gather_nd(data, up_right_warp) * right_warp_weight
+        )
+        * up_warp_weight
+        + (
+            gather_nd(data, down_left_warp) * left_warp_weight
+            + gather_nd(data, down_right_warp) * right_warp_weight
+        )
+        * down_warp_weight
+    )
 
-    #result = result.view(warp_x.shape[0], -1, warp_x.shape[1], warp_x.shape[2])
+    # result = result.view(warp_x.shape[0], -1, warp_x.shape[1], warp_x.shape[2])
     return result

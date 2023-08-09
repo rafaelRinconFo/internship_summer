@@ -43,9 +43,7 @@ class SupervisedMidasDataset(torch.utils.data.Dataset):
         image = cv2.imread(self.list_images_paths[index])
         depth_map = cv2.imread(self.list_depth_paths[index], cv2.IMREAD_GRAYSCALE)
         # Resizes the depth map to hd resolution
-        depth_map = cv2.resize(
-            depth_map, (1920, 1080), interpolation=cv2.INTER_AREA
-        )
+        depth_map = cv2.resize(depth_map, (1920, 1080), interpolation=cv2.INTER_AREA)
         if self.transform:
             return self.transform(image), depth_map, self.list_images_paths[index]
 
@@ -66,17 +64,16 @@ class UnsupervisedDataset(torch.utils.data.Dataset):
         ]
 
         self.transform = transform
-        
+
         if toy:
             self.list_images_paths = self.list_images_paths[
                 : int(len(self.list_images_paths) * 0.1)
             ]
 
-
     def __getitem__(self, index):
 
         path_init, year_init = self.list_images_paths[index]
-        image_init= cv2.imread(path_init)
+        image_init = cv2.imread(path_init)
         with open(os.path.join("datasets/", str(year_init), "sfm", "cameras.txt")) as f:
             lines = f.readlines()
             for line in lines:
@@ -94,24 +91,26 @@ class UnsupervisedDataset(torch.utils.data.Dataset):
         # Creates a tensor the camera matrix
         camera_matrix = torch.tensor([[fm, 0, cx], [0, fm, cy], [0, 0, 1]])
 
-        if index == len(self.list_images_paths)-1:
+        if index == len(self.list_images_paths) - 1:
             path_init, year_init = self.list_images_paths[index]
-            image_init= cv2.imread(path_init)
+            image_init = cv2.imread(path_init)
             return self.transform(image_init), self.transform(image_init), camera_matrix
 
         # Load image and depth map
-        
 
-        path_final, year_fin = self.list_images_paths[index+1]
-        image_final=cv2.imread(path_final)
+        path_final, year_fin = self.list_images_paths[index + 1]
+        image_final = cv2.imread(path_final)
         # Reads the camera parameters from the .txt file
 
-
         if year_init != year_fin:
-            return self.transform(image_init),self.transform(image_init), camera_matrix
- 
+            return self.transform(image_init), self.transform(image_init), camera_matrix
+
         if self.transform:
-            return self.transform(image_init), self.transform(image_final), camera_matrix
+            return (
+                self.transform(image_init),
+                self.transform(image_final),
+                camera_matrix,
+            )
 
         return image_init, image_final, camera_matrix
 

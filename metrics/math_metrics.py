@@ -75,10 +75,7 @@ def log_metrics(
             if len(pred.shape) < 4:
                 pred = pred.unsqueeze(1)
             pred = torch.nn.functional.interpolate(
-                pred,
-                size=depth_map.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
+                pred, size=depth_map.shape[-2:], mode="bicubic", align_corners=False
             ).squeeze()
 
             if len(pred.shape) == 2:
@@ -102,7 +99,7 @@ def log_metrics(
                 worst_samples["pred"] = pred
                 worst_samples["value"] = metrics_logger[worst_metric_criteria][-1]
             elif (
-                worst_metric_criteria != "accuracy_threshold" 
+                worst_metric_criteria != "accuracy_threshold"
                 and metrics_logger[worst_metric_criteria][-1] > worst_samples["value"]
             ):
                 worst_samples["batch"] = data

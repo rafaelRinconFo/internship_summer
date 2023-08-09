@@ -1,5 +1,6 @@
 import torch
 
+
 def invert_intrinsics_matrix(intrinsics_mat):
     """Inverts an intrinsics matrix.
     Inverting matrices in not supported on TPU. The intrinsics matrix has however
@@ -13,8 +14,10 @@ def invert_intrinsics_matrix(intrinsics_mat):
     intrinsics_mat = intrinsics_mat
     intrinsics_mat_cols = torch.unbind(intrinsics_mat, dim=-1)
     if len(intrinsics_mat_cols) != 3:
-        raise ValueError('The last dimension of intrinsics_mat should be 3, not '
-                    '%d.' % len(intrinsics_mat_cols))
+        raise ValueError(
+            "The last dimension of intrinsics_mat should be 3, not "
+            "%d." % len(intrinsics_mat_cols)
+        )
 
     fx, _, _ = torch.unbind(intrinsics_mat_cols[0], dim=-1)
     _, fy, _ = torch.unbind(intrinsics_mat_cols[1], dim=-1)

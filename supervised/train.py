@@ -15,13 +15,14 @@ from scripts import create_run_directory
 from tqdm import tqdm
 from distutils.util import strtobool
 
+
 class Trainer:
     def __init__(
         self, model, train_dataloader, val_dataloader, optimizer, loss
     ) -> None:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # Moves the model to the GPU if available     
+        # Moves the model to the GPU if available
         self.model = model.to(self.device)
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
@@ -53,10 +54,7 @@ class Trainer:
                 pred = pred.unsqueeze(1)
 
             pred = torch.nn.functional.interpolate(
-                pred,
-                size=depth_map.shape[-2:],
-                mode="bicubic",
-                align_corners=False,
+                pred, size=depth_map.shape[-2:], mode="bicubic", align_corners=False
             ).squeeze()
 
             if len(pred.shape) == 2:
@@ -103,12 +101,9 @@ class Trainer:
                 pred = self.model(image)
                 if len(pred.shape) < 4:
                     pred = pred.unsqueeze(1)
-                
+
                 pred = torch.nn.functional.interpolate(
-                    pred,
-                    size=depth_map.shape[-2:],
-                    mode="bicubic",
-                    align_corners=False,
+                    pred, size=depth_map.shape[-2:], mode="bicubic", align_corners=False
                 ).squeeze()
 
                 # Computing the loss, storing it
@@ -190,7 +185,7 @@ def main():
     else:
         print("WANDB_API_KEY not found. Logging to wandb will not be available")
 
-    if "DPT" in model_type or "MiDaS" in model_type:   
+    if "DPT" in model_type or "MiDaS" in model_type:
         model, transforms = get_midas_env(model_type, pretrained=pretrained)
     elif "DispNet" == model_type:
         model, transforms = get_disp_net(model_type, pretrained=pretrained)
