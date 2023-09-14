@@ -207,3 +207,17 @@ Again, if you want to use the mighty cluster, [the unsupervised deploy script](/
 ```
 sbatch deploy_supervised_job.sh
 ```
+
+## Modifying the code
+
+You want to modify the code?? Of course, go for it! Keep in mind a couple of things:
+
+### Modifying the supervised related scripts
+
+When it comes to the supervised approach, you can modify mainly the metrics. Consider that the MIDAS model is already implemented by Pytorch so there's not a lot to modify regarding the architecture of the model. Now, if you want to add a new model, you totally can do it. I did it with the depth_estimation section of the unsupervised pipeline and it worked very well. Just remember to add it to the config files and the [supervised models script](/supervised/model.py). Be very careful with the input and output shape of the model.
+
+You an modify the losses and metrics, or create new ones. Again, just remember to add them into the config file.
+
+### Modifying the unsupervised related scripts
+
+Again, you can modify it as you wish. My only suggestion is to modify only when you have a deep understanding of the paper I mentioned in the beginning. If you check the [losses folder](/unsupervised/losses/) you'll note that there are several scripts for the losses. Why? Well, when we talk about an unsupervised approach every loss helps the model to go in the direction we want. Again, it is vital to read the paper before going to the code.
