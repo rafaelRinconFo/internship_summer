@@ -440,6 +440,8 @@ def main():
     worst_metric_criteria = params["worst_metric_criteria"]
     worst_sample_number = params["worst_sample_number"]
     pretrained_disp_model = params["pretrained_disp_model"]
+    save_model_every = params["save_model_every"]
+
     seed = params["seed"]
     hyperparams = {
         "alpha_motion": params["alpha_motion"],
@@ -571,7 +573,7 @@ def main():
         val_losses, val_average_losses = trainer.validation_epoch(val_loader)
         print(f"Average validation loss: {val_losses}")
         print(f"Individual validation losses: {val_average_losses}")
-        if epoch % 10 == 0:
+        if epoch % save_model_every == 0:
             print("Saving model")
             try:
                 torch.save(

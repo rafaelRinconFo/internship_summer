@@ -25,7 +25,7 @@ class DatasetSpliter:
             val_ratio (float, optional): Ratio of the validation set. Defaults to 0.1.          
             test_ratio (float, optional): Ratio of the test set. Defaults to 0.1.
             split_type (str, optional): Type of split. Defaults to 'shuffled'.
-            segment_size (int, optional): Size of the segment to be used in the sequential split. Defaults to 100.
+            segment_size (int, optional): Size of the segment to be used in the sequential split. Defaults to 1000.
         """
         self.years = years
         self.years = [int("".join(year)) for year in years]

@@ -1,13 +1,14 @@
 csv_split: sequential_images_split.csv
 # It can be DPT_Large, DPT_Hybrid or MiDaS_small. For the pretraining of the unsupervised model, it is
 # possible to use the DispNet
-model_type: DispNet 
+model_type: MiDaS_small 
 batch_size: 8
-epochs: 15
+epochs: 10
 lr: 0.0001
 weight_decay: 0.000001
 loss: Huber # It can be L1, MSE, Huber, SIL, SSIM is still WIP
 log_metrics_every: 5 # Log metrics every n epochs
+save_model_every: 10 # Save model every n epochs
 desired_metrics: ["accuracy_threshold", "RMSE", "RMSLE"]
 worst_metric_criteria: accuracy_threshold # It can be RMSE, RMSLE, accuracy_threshold 
 worst_sample_number: 5 # Number of worst samples to save

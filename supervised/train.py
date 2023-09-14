@@ -136,6 +136,7 @@ def main():
     lr = params["lr"]
     weight_decay = params["weight_decay"]
     log_metrics_every = params["log_metrics_every"]
+    save_model_every = params["save_model_every"]
     desired_metrics = params["desired_metrics"]
     pretrained = params["pretrained"]
     worst_metric_criteria = params["worst_metric_criteria"]
@@ -231,7 +232,7 @@ def main():
         print(f"Average train loss: {train_losses}")
         val_losses = trainer.validation_epoch(model, trainer.device, val_loader)
         print(f"Average validation loss: {val_losses}")
-        if epoch % 10 == 0:
+        if epoch % save_model_every == 0:
             print("Saving model")
             try:
                 torch.save(
